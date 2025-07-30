@@ -20,13 +20,25 @@ export function parseTaxonomyCSV(csvContent: string): TaxonomyData {
     if (!line) continue;
     
     const columns = parseCSVLine(line);
-    if (columns.length < 10) continue;
+    if (columns.length < 5) continue; // Need at least L1, L2, L3, Example, and first framework
     
-    const l1Category = columns[0]?.trim();
-    const l2Category = columns[1]?.trim();
-    const example = columns[3]?.trim();
+    let l1Category = columns[0]?.trim() || '';
+    let l2Category = columns[1]?.trim() || '';
+    let example = columns[3]?.trim() || '';
     
-    if (!l1Category || !l2Category || !example) continue;
+    // Remove quotes if present
+    l1Category = l1Category.replace(/^"/, '').replace(/"$/, '');
+    l2Category = l2Category.replace(/^"/, '').replace(/"$/, '');
+    example = example.replace(/^"/, '').replace(/"$/, '');
+    
+    if (!l1Category || !l2Category) {
+      continue;
+    }
+    
+    // Use a placeholder example if missing
+    if (!example) {
+      example = `Example for ${l2Category}`;
+    }
     
     // Parse framework support
     const frameworks: Framework[] = [];
