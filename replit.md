@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a full-stack web application that visualizes AI safety taxonomy data through an interactive sunburst chart. The application provides comprehensive framework mapping for AI safety and security standards including OWASP, NIST, EU AI Act, US EO 14110, and UK AI Whitepaper. Built with React, TypeScript, Express, and D3.js for data visualization.
+This is a static web application that visualizes AI safety taxonomy data through an interactive sunburst chart. The application provides comprehensive framework mapping for AI safety and security standards including OWASP, NIST, EU AI Act, US EO 14110, and UK AI Whitepaper. Built with React, TypeScript, and D3.js for data visualization, deployed as a static site reading CSV data directly from the browser.
 
 ## User Preferences
 
@@ -21,17 +21,12 @@ The application follows a modern full-stack architecture with clear separation b
 - **Data Visualization**: D3.js for interactive sunburst charts
 - **Build Tool**: Vite with hot module replacement
 
-### Backend Architecture
-- **Runtime**: Node.js with TypeScript
-- **Framework**: Express.js with custom middleware
-- **Database**: Drizzle ORM configured for PostgreSQL (using Neon serverless)
-- **Data Storage**: Currently using in-memory storage with CSV parsing
-- **API Design**: RESTful endpoints with JSON responses
-
 ### Data Processing
-- CSV parsing for taxonomy data ingestion
+- Static CSV file served directly from the browser
+- Client-side CSV parsing for taxonomy data ingestion
 - Type-safe schema validation using Zod
 - Hierarchical data transformation for visualization
+- No backend server required for deployment
 
 ## Key Components
 
@@ -69,12 +64,11 @@ The application follows a modern full-stack architecture with clear separation b
 
 ## Data Flow
 
-1. **Data Ingestion**: CSV files containing taxonomy data are read from the file system
-2. **Data Processing**: Raw CSV content is parsed and validated against Zod schemas
-3. **API Serving**: Processed data is served via REST endpoints with caching
-4. **Client Fetching**: React Query manages data fetching with error handling
-5. **Visualization**: D3.js transforms hierarchical data into interactive sunburst charts
-6. **User Interaction**: Click events update application state and detail panels
+1. **Data Ingestion**: Static CSV file served directly from client/public/taxonomy.csv
+2. **Data Processing**: Raw CSV content is fetched and parsed client-side using Zod schemas
+3. **Client Fetching**: React Query manages CSV data fetching with error handling
+4. **Visualization**: D3.js transforms hierarchical data into interactive sunburst charts
+5. **User Interaction**: Click events update application state and detail panels
 
 ## External Dependencies
 
@@ -117,10 +111,17 @@ The application follows a modern full-stack architecture with clear separation b
 
 ### Key Architectural Decisions
 
-1. **Monorepo Structure**: Shared types and schemas in `/shared` directory enable type safety across client and server
-2. **In-Memory Caching**: Current storage strategy prioritizes simplicity over persistence, suitable for read-heavy taxonomy data
+1. **Static Deployment**: Converted from full-stack to static-only for simplified deployment and hosting
+2. **Client-Side CSV Processing**: CSV data is fetched and parsed directly in the browser, eliminating server dependency
 3. **Component Library**: Shadcn/ui provides consistent design system with Tailwind integration
 4. **Data Visualization**: D3.js chosen for complex interactive charts that require precise control over SVG rendering
-5. **Database Preparation**: Drizzle ORM configured for future PostgreSQL integration while maintaining current CSV-based workflow
+5. **Type Safety**: Shared schemas in `/shared` directory ensure consistency across the application
 
-The architecture balances developer experience, performance, and maintainability while providing a foundation for future enhancements such as user authentication, data persistence, and real-time updates.
+## Recent Changes (July 30, 2025)
+
+- **Static Conversion**: Migrated from Express.js server to pure static deployment
+- **CSV Integration**: Added client-side CSV parsing for taxonomy data
+- **Enhanced Labels**: Improved sunburst chart L1 category labels with white pill backgrounds
+- **Deployment Ready**: Configured build process for static hosting on Replit
+
+The architecture now prioritizes simplicity and static deployment while maintaining all visualization features and type safety.
