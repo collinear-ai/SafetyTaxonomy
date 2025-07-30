@@ -14,28 +14,28 @@ export function parseTaxonomyCSV(csvContent: string): TaxonomyData {
   const lines = csvContent.split('\n');
   const items: TaxonomyItem[] = [];
   
-  // Skip header rows and process data
-  for (let i = 2; i < lines.length; i++) {
+  // Skip header row and process data
+  for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
     
     const columns = parseCSVLine(line);
     if (columns.length < 10) continue;
     
-    const l1Category = columns[1]?.trim();
-    const l2Category = columns[2]?.trim();
-    const example = columns[4]?.trim();
+    const l1Category = columns[0]?.trim();
+    const l2Category = columns[1]?.trim();
+    const example = columns[3]?.trim();
     
     if (!l1Category || !l2Category || !example) continue;
     
     // Parse framework support
     const frameworks: Framework[] = [];
     const frameworkColumns = [
-      { col: 5, name: "OWASP" as Framework },
-      { col: 6, name: "NIST" as Framework },
-      { col: 7, name: "EU AI Act" as Framework },
-      { col: 8, name: "US EO 14110" as Framework },
-      { col: 9, name: "UK AI Whitepaper" as Framework }
+      { col: 4, name: "OWASP" as Framework },
+      { col: 5, name: "NIST" as Framework },
+      { col: 6, name: "EU AI Act" as Framework },
+      { col: 7, name: "US EO 14110" as Framework },
+      { col: 8, name: "UK AI Whitepaper" as Framework }
     ];
     
     frameworkColumns.forEach(({ col, name }) => {

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Search, CircleDot, List, Download, Calendar } from 'lucide-react';
 import { searchTaxonomy } from '@/lib/taxonomy-utils';
+import { parseTaxonomyCSV } from '@/lib/csv-parser';
 
 export default function Home() {
   const [selectedData, setSelectedData] = useState<TaxonomyCategory | TaxonomyItem | null>(null);
@@ -17,7 +18,15 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<'circle' | 'list'>('circle');
 
   const { data: taxonomyData, isLoading, error } = useQuery<TaxonomyData>({
-    queryKey: ['/api/taxonomy'],
+    queryKey: ['taxonomy-csv'],
+    queryFn: async () => {
+      const response = await fetch('/taxonomy.csv');
+      if (!response.ok) {
+        throw new Error('Failed to fetch taxonomy data');
+      }
+      const csvContent = await response.text();
+      return parseTaxonomyCSV(csvContent);
+    },
   });
 
   if (isLoading) {
