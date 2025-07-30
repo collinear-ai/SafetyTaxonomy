@@ -1,28 +1,34 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { TaxonomyData, TaxonomyCategory, TaxonomyItem } from '@shared/schema';
-import { SunburstChart } from '@/components/visualization/sunburst-chart';
-import { DetailPanel } from '@/components/visualization/detail-panel';
-import { FrameworkBadge } from '@/components/ui/framework-badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Search, CircleDot, List, Download, Calendar } from 'lucide-react';
-import { searchTaxonomy } from '@/lib/taxonomy-utils';
-import { parseTaxonomyCSV } from '@/lib/csv-parser';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { TaxonomyData, TaxonomyCategory, TaxonomyItem } from "@shared/schema";
+import { SunburstChart } from "@/components/visualization/sunburst-chart";
+import { DetailPanel } from "@/components/visualization/detail-panel";
+import { FrameworkBadge } from "@/components/ui/framework-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Search, CircleDot, List, Download, Calendar } from "lucide-react";
+import { searchTaxonomy } from "@/lib/taxonomy-utils";
+import { parseTaxonomyCSV } from "@/lib/csv-parser";
 
 export default function Home() {
-  const [selectedData, setSelectedData] = useState<TaxonomyCategory | TaxonomyItem | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'circle' | 'list'>('circle');
+  const [selectedData, setSelectedData] = useState<
+    TaxonomyCategory | TaxonomyItem | null
+  >(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<"circle" | "list">("circle");
 
-  const { data: taxonomyData, isLoading, error } = useQuery<TaxonomyData>({
-    queryKey: ['taxonomy-csv'],
+  const {
+    data: taxonomyData,
+    isLoading,
+    error,
+  } = useQuery<TaxonomyData>({
+    queryKey: ["taxonomy-csv"],
     queryFn: async () => {
-      const response = await fetch('/taxonomy.csv');
+      const response = await fetch("/taxonomy.csv");
       if (!response.ok) {
-        throw new Error('Failed to fetch taxonomy data');
+        throw new Error("Failed to fetch taxonomy data");
       }
       const csvContent = await response.text();
       return parseTaxonomyCSV(csvContent);
@@ -37,7 +43,9 @@ export default function Home() {
     return <ErrorState error={error} />;
   }
 
-  const searchResults = searchQuery ? searchTaxonomy(taxonomyData, searchQuery) : [];
+  const searchResults = searchQuery
+    ? searchTaxonomy(taxonomyData, searchQuery)
+    : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -46,14 +54,18 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Collinear AI Safety Taxonomy</h1>
+              <h1 className="text-2xl font-bold text-foreground">
+                Collinear AI Safety Taxonomy
+              </h1>
               <p className="text-sm text-muted-foreground mt-1">
                 Comprehensive framework mapping for AI safety and security
               </p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground">Frameworks:</span>
+                <span className="text-sm text-muted-foreground">
+                  Frameworks:
+                </span>
                 <div className="flex space-x-1">
                   <FrameworkBadge framework="OWASP" />
                   <FrameworkBadge framework="NIST" />
@@ -75,7 +87,9 @@ export default function Home() {
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-xl">Interactive Safety Taxonomy</CardTitle>
+                  <CardTitle className="text-xl">
+                    Interactive Safety Taxonomy
+                  </CardTitle>
                   <div className="flex items-center space-x-4">
                     {/* Search */}
                     <div className="relative">
@@ -92,8 +106,8 @@ export default function Home() {
                     <div className="flex bg-muted rounded-lg p-1">
                       <Button
                         size="sm"
-                        variant={viewMode === 'circle' ? 'default' : 'ghost'}
-                        onClick={() => setViewMode('circle')}
+                        variant={viewMode === "circle" ? "default" : "ghost"}
+                        onClick={() => setViewMode("circle")}
                         className="text-xs"
                       >
                         <CircleDot className="h-3 w-3 mr-1" />
@@ -101,8 +115,8 @@ export default function Home() {
                       </Button>
                       <Button
                         size="sm"
-                        variant={viewMode === 'list' ? 'default' : 'ghost'}
-                        onClick={() => setViewMode('list')}
+                        variant={viewMode === "list" ? "default" : "ghost"}
+                        onClick={() => setViewMode("list")}
                         className="text-xs"
                       >
                         <List className="h-3 w-3 mr-1" />
@@ -113,15 +127,15 @@ export default function Home() {
                 </div>
               </CardHeader>
               <CardContent>
-                {viewMode === 'circle' ? (
+                {viewMode === "circle" ? (
                   <SunburstChart
                     data={taxonomyData}
                     onSelectionChange={setSelectedData}
                     searchQuery={searchQuery}
                   />
                 ) : (
-                  <ListView 
-                    data={taxonomyData} 
+                  <ListView
+                    data={taxonomyData}
                     searchResults={searchResults}
                     searchQuery={searchQuery}
                     onSelectionChange={setSelectedData}
@@ -133,32 +147,10 @@ export default function Home() {
 
           {/* Detail Panel */}
           <div className="lg:col-span-1">
-            <DetailPanel 
-              selectedData={selectedData} 
+            <DetailPanel
+              selectedData={selectedData}
               overallCoverage={taxonomyData.overallCoverage}
             />
-          </div>
-        </div>
-
-        {/* Export Section */}
-        <div className="mt-12 bg-gradient-to-r from-primary to-blue-600 rounded-xl p-8 text-primary-foreground">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Ready to implement comprehensive AI safety?</h3>
-              <p className="text-primary-foreground/90">
-                Our taxonomy covers all major frameworks and provides actionable guidance for your AI systems.
-              </p>
-            </div>
-            <div className="flex space-x-4">
-              <Button variant="secondary" className="text-primary">
-                <Download className="h-4 w-4 mr-2" />
-                Export Data
-              </Button>
-              <Button variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10">
-                <Calendar className="h-4 w-4 mr-2" />
-                Schedule Demo
-              </Button>
-            </div>
           </div>
         </div>
       </main>
@@ -166,41 +158,43 @@ export default function Home() {
   );
 }
 
-function ListView({ 
-  data, 
-  searchResults, 
-  searchQuery, 
-  onSelectionChange 
-}: { 
+function ListView({
+  data,
+  searchResults,
+  searchQuery,
+  onSelectionChange,
+}: {
   data: TaxonomyData;
   searchResults: TaxonomyItem[];
   searchQuery: string;
   onSelectionChange: (selected: TaxonomyCategory | TaxonomyItem) => void;
 }) {
-  const displayData = searchQuery ? 
-    // Group search results by category
-    searchResults.reduce((acc, item) => {
-      const existing = acc.find(cat => cat.name === item.l1Category);
-      if (existing) {
-        existing.subcategories.push(item);
-      } else {
-        const originalCategory = data.categories.find(cat => cat.name === item.l1Category);
-        if (originalCategory) {
-          acc.push({
-            ...originalCategory,
-            subcategories: [item]
-          });
+  const displayData = searchQuery
+    ? // Group search results by category
+      searchResults.reduce((acc, item) => {
+        const existing = acc.find((cat) => cat.name === item.l1Category);
+        if (existing) {
+          existing.subcategories.push(item);
+        } else {
+          const originalCategory = data.categories.find(
+            (cat) => cat.name === item.l1Category,
+          );
+          if (originalCategory) {
+            acc.push({
+              ...originalCategory,
+              subcategories: [item],
+            });
+          }
         }
-      }
-      return acc;
-    }, [] as TaxonomyCategory[]) :
-    data.categories;
+        return acc;
+      }, [] as TaxonomyCategory[])
+    : data.categories;
 
   return (
     <div className="space-y-4">
       {displayData.map((category) => (
         <Card key={category.name} className="overflow-hidden">
-          <CardHeader 
+          <CardHeader
             className="bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors"
             onClick={() => onSelectionChange(category)}
           >
@@ -210,8 +204,8 @@ function ListView({
                 <span className="text-xs text-muted-foreground">
                   {category.subcategories.length} subcategories
                 </span>
-                <div 
-                  className="w-3 h-3 rounded-full" 
+                <div
+                  className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: category.color }}
                 />
               </div>
@@ -219,17 +213,21 @@ function ListView({
           </CardHeader>
           <CardContent className="p-4 space-y-3">
             {category.subcategories.map((item) => (
-              <div 
-                key={item.id} 
+              <div
+                key={item.id}
                 className="flex items-start justify-between p-3 bg-muted/50 rounded cursor-pointer hover:bg-muted/70 transition-colors"
                 onClick={() => onSelectionChange(item)}
               >
                 <div className="flex-1">
-                  <h4 className="text-sm font-medium text-foreground">{item.l2Category}</h4>
-                  <p className="text-xs text-muted-foreground mt-1">{item.example}</p>
+                  <h4 className="text-sm font-medium text-foreground">
+                    {item.l2Category}
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {item.example}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-1 ml-3">
-                  {item.frameworks.map(fw => (
+                  {item.frameworks.map((fw) => (
                     <FrameworkBadge key={fw} framework={fw} />
                   ))}
                 </div>
@@ -285,7 +283,8 @@ function ErrorState({ error }: { error: any }) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            {error?.message || 'Failed to load taxonomy data. Please try again later.'}
+            {error?.message ||
+              "Failed to load taxonomy data. Please try again later."}
           </p>
         </CardContent>
       </Card>
