@@ -109,24 +109,52 @@ export function SunburstChart({ data, onSelectionChange, searchQuery }: Sunburst
         }
       });
 
-    // Add labels for L1 categories only
-    const text = g.selectAll("text")
+    // Add labels for L1 categories with pill backgrounds
+    const labelGroup = g.selectAll("g.label-group")
       .data(filteredNodes.filter(d => d.depth === 1))
-      .enter().append("text")
+      .enter().append("g")
+      .attr("class", "label-group")
       .attr("transform", d => {
         const angle = (d.x0 + d.x1) / 2;
-        const radius = (d.y0 + d.y1) / 2;
-        return `rotate(${(angle * 180 / Math.PI - 90)}) translate(${radius},0) rotate(${angle > Math.PI ? 180 : 0})`;
+        const radius = (d.y0 + d.y1) / 2 + 20; // Push labels outward
+        const x = Math.cos(angle - Math.PI / 2) * radius;
+        const y = Math.sin(angle - Math.PI / 2) * radius;
+        return `translate(${x},${y})`;
+      });
+
+    // Add pill background
+    labelGroup.append("rect")
+      .attr("rx", 12)
+      .attr("ry", 12)
+      .style("fill", "white")
+      .style("stroke", "#e5e5e5")
+      .style("stroke-width", 1)
+      .style("opacity", 0.95)
+      .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.1))")
+      .attr("width", d => {
+        const name = d.data.name;
+        const displayName = name.length > 20 ? name.substring(0, 20) + "..." : name;
+        return displayName.length * 6.5 + 16; // Approximate width based on character count
       })
+      .attr("height", 20)
+      .attr("x", d => {
+        const name = d.data.name;
+        const displayName = name.length > 20 ? name.substring(0, 20) + "..." : name;
+        return -(displayName.length * 6.5 + 16) / 2;
+      })
+      .attr("y", -10);
+
+    // Add text labels
+    labelGroup.append("text")
       .attr("dy", "0.35em")
-      .style("text-anchor", d => (d.x0 + d.x1) / 2 > Math.PI ? "end" : "start")
+      .style("text-anchor", "middle")
       .style("font-size", "11px")
-      .style("font-weight", "500")
+      .style("font-weight", "600")
       .style("fill", "hsl(20, 14.3%, 4.1%)")
       .style("pointer-events", "none")
       .text(d => {
         const name = d.data.name;
-        return name.length > 18 ? name.substring(0, 18) + "..." : name;
+        return name.length > 20 ? name.substring(0, 20) + "..." : name;
       });
 
   }, [data, dimensions, searchQuery]);
