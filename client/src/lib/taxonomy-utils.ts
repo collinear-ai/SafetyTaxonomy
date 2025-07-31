@@ -14,23 +14,38 @@ export interface HierarchyNode {
 }
 
 export function createHierarchyData(taxonomyData: TaxonomyData): HierarchyNode {
+  const totalCategories = taxonomyData.categories.length
+
   return {
     name: 'AI Safety Taxonomy',
-    children: taxonomyData.categories.map((category) => ({
-      name: category.name,
-      color: category.color,
-      data: category,
-      children: category.subcategories.map((subcategory) => ({
-        name: subcategory.name,
-        value: 1 / category.subcategories.length, // Equal L2 slices, equal L1 total values
-        data: subcategory,
-        children: subcategory.items.map((item) => ({
-          name: item.l3Category,
-          value: 1 / subcategory.items.length, // Equal L3 slices within each L2
-          data: item,
-        })),
-      })),
-    })),
+    children: taxonomyData.categories.map((category, categoryIndex) => {
+      // Calculate precise L2 values that sum exactly to the L1 value
+      const l2Count = category.subcategories.length
+      const baseL2Value = 1 / l2Count
+
+      return {
+        name: category.name,
+        color: category.color,
+        value: 1, // Equal L1 slices - all L1 categories get same size
+        data: category,
+        children: category.subcategories.map((subcategory, subIndex) => {
+          // Calculate precise L3 values that sum exactly to the L2 value
+          const l3Count = subcategory.items.length
+          const baseL3Value = baseL2Value / l3Count
+
+          return {
+            name: subcategory.name,
+            value: baseL2Value, // Precise L2 value
+            data: subcategory,
+            children: subcategory.items.map((item, itemIndex) => ({
+              name: item.l3Category,
+              value: baseL3Value, // Precise L3 value
+              data: item,
+            })),
+          }
+        }),
+      }
+    }),
   }
 }
 

@@ -72,12 +72,18 @@ export function SunburstChart({
 
     partition(root)
 
-    // Ensure all L3 arcs fill their full angular width by rounding to prevent gaps
+    // Fix gaps by ensuring children perfectly fill their parent's angular space
     root.descendants().forEach((d) => {
-      if (d.depth === 3) {
-        // Round the angles to prevent floating-point precision issues
-        d.x0 = Math.round(d.x0 * 1000000) / 1000000
-        d.x1 = Math.round(d.x1 * 1000000) / 1000000
+      if (d.children && d.children.length > 0) {
+        // For any node with children, ensure children perfectly span the parent's angular range
+        const parentAngularSize = d.x1 - d.x0
+        const childCount = d.children.length
+        const childAngularSize = parentAngularSize / childCount
+
+        d.children.forEach((child, index) => {
+          child.x0 = d.x0 + index * childAngularSize
+          child.x1 = d.x0 + (index + 1) * childAngularSize
+        })
       }
     })
 
