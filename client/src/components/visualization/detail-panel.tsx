@@ -34,7 +34,7 @@ export function DetailPanel({
                     </div>
                 </CardContent>
 
-                <div className="mt-8 pt-6 border-t border-border px-6 pb-6 hidden">
+                <div className="hidden mt-8 pt-6 border-t border-border px-6 pb-6">
                     <h4 className="text-sm font-medium text-foreground mb-4">
                         Coverage Statistics
                     </h4>

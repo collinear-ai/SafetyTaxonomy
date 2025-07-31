@@ -7,13 +7,13 @@ import {
 } from "@shared/schema";
 
 const CATEGORY_COLORS = {
-    "Fairness, Bias & Non-Discrimination": "hsl(17.56deg 100% 85.74%)",
-    "Governance & Oversight": "hsl(17.56deg 100% 85.74%)",
-    "Harmful Content & Misuse": "hsl(17.56deg 100% 85.74%)",
-    "Misinformation & Factuality": "hsl(17.56deg 100% 85.74%)",
-    "Regulatory & Compliance": "hsl(17.56deg 100% 85.74%)",
-    "Security, Privacy & Data Protection": "hsl(17.56deg 100% 85.74%)",
-    "Societal, Ethics & Long-Term Risks": "hsl(17.56deg 100% 85.74%)",
+    "Fairness, Bias & Non-Discrimination": "hsl(17.73deg 100% 91.37%)",
+    "Governance & Oversight": "hsl(17.73deg 100% 91.37%)",
+    "Harmful Content & Misuse": "hsl(17.73deg 100% 91.37%)",
+    "Misinformation & Factuality": "hsl(17.73deg 100% 91.37%)",
+    "Regulatory & Compliance": "hsl(17.73deg 100% 91.37%)",
+    "Security, Privacy & Data Protection": "hsl(17.73deg 100% 91.37%)",
+    "Societal, Ethics & Long-Term Risks": "hsl(17.73deg 100% 91.37%)",
 };
 
 export function parseTaxonomyCSV(csvContent: string): TaxonomyData {

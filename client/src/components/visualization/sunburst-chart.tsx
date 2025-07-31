@@ -169,22 +169,29 @@ export function SunburstChart({
                             return currentL1Name !== parentL1?.name;
                         }
                     } else {
-                        // For L2 categories - gray out if parent L1 should be grayed out
+                        // For L2 categories
                         const parentL1Name = d.parent?.data.name;
+                        const currentL2Name = d.data.name;
 
                         if ("subcategories" in selectedItem) {
-                            // Selected item is an L1 category
+                            // Selected item is an L1 category - gray out if different L1
                             return parentL1Name !== selectedItem.name;
                         } else if ("items" in selectedItem) {
-                            // Selected item is an L2 category - find its parent L1
+                            // Selected item is an L2 category
                             const parentL1 = data.categories.find((cat) =>
                                 cat.subcategories.some(
                                     (sub) => sub.name === selectedItem.name
                                 )
                             );
-                            return parentL1Name !== parentL1?.name;
+
+                            // Gray out if different L1 OR if same L1 but different L2
+                            if (parentL1Name !== parentL1?.name) {
+                                return true; // Different L1, so gray out
+                            } else {
+                                return currentL2Name !== selectedItem.name; // Same L1, gray out if different L2
+                            }
                         } else {
-                            // Selected item is an L3/item - find its parent L1
+                            // Selected item is an L3/item - find its parent L1 and L2
                             const parentL1 = data.categories.find((cat) =>
                                 cat.subcategories.some((sub) =>
                                     sub.items.some(
@@ -192,7 +199,19 @@ export function SunburstChart({
                                     )
                                 )
                             );
-                            return parentL1Name !== parentL1?.name;
+                            const parentL2 = parentL1?.subcategories.find(
+                                (sub) =>
+                                    sub.items.some(
+                                        (item) => item.id === selectedItem.id
+                                    )
+                            );
+
+                            // Gray out if different L1 OR if same L1 but different L2
+                            if (parentL1Name !== parentL1?.name) {
+                                return true; // Different L1, so gray out
+                            } else {
+                                return currentL2Name !== parentL2?.name; // Same L1, gray out if different L2
+                            }
                         }
                     }
                 };
@@ -234,9 +253,10 @@ export function SunburstChart({
                 }
             })
             .style("stroke", "#fff")
-            .style("stroke-width", 2)
+            .style("stroke-width", (d) => (d.depth === 1 ? 3 : 0.5))
             .style("cursor", "pointer")
             .style("opacity", searchQuery ? 0.6 : 0.8)
+            .style("transition", "fill 0.4s ease")
             .on("mouseover", function (event, d) {
                 d3.select(this).style("opacity", 1);
 
@@ -298,58 +318,95 @@ export function SunburstChart({
                 }
             });
 
-        // Add labels for L1 categories with pill backgrounds
-        const labelGroup = g
-            .selectAll("g.label-group")
+        // Add text labels directly in L1 segments
+        g.selectAll("text.l1-label")
             .data(filteredNodes.filter((d) => d.depth === 1))
             .enter()
-            .append("g")
-            .attr("class", "label-group")
+            .append("text")
+            .attr("class", "l1-label")
             .attr("transform", (d) => {
                 const angle = (d.x0 + d.x1) / 2;
-                const radius = (d.y0 + d.y1) / 2 + 20; // Push labels outward
+                const radius = (d.y0 + d.y1) / 2;
                 const x = Math.cos(angle - Math.PI / 2) * radius;
                 const y = Math.sin(angle - Math.PI / 2) * radius;
+
                 return `translate(${x},${y})`;
-            });
-
-        // Add pill background
-        labelGroup
-            .append("rect")
-            .attr("rx", 12)
-            .attr("ry", 12)
-            .style("fill", "white")
-            .style("stroke", "#e5e5e5")
-            .style("stroke-width", 1)
-            .style("opacity", 0.95)
-            .style("filter", "drop-shadow(0 2px 4px rgba(0,0,0,0.1))")
-            .attr("width", (d) => {
-                const name = d.data.name;
-                const displayName =
-                    name.length > 40 ? name.substring(0, 40) + "..." : name;
-                return displayName.length * 6.5 + 16; // Approximate width based on character count
             })
-            .attr("height", 20)
-            .attr("x", (d) => {
-                const name = d.data.name;
-                const displayName =
-                    name.length > 40 ? name.substring(0, 40) + "..." : name;
-                return -(displayName.length * 6.5 + 16) / 2;
-            })
-            .attr("y", -10);
-
-        // Add text labels
-        labelGroup
-            .append("text")
-            .attr("dy", "0.35em")
             .style("text-anchor", "middle")
-            .style("font-size", "11px")
-            .style("font-weight", "600")
-            .style("fill", "hsl(20, 14.3%, 4.1%)")
+            .style("dominant-baseline", "middle")
+            .style("font-size", (d) => {
+                // Adjust font size based on arc width
+                const arcAngle = d.x1 - d.x0;
+                const baseSize = Math.min(14, arcAngle * 80); // Scale with arc size
+                return `${Math.max(11, baseSize)}px`;
+            })
+            .style("font-weight", "400")
+            .style("fill", "#2C2C2C")
+            .style("font-family", '"Libre Caslon Display", serif')
             .style("pointer-events", "none")
-            .text((d) => {
+            .each(function (d) {
+                const text = d3.select(this);
                 const name = d.data.name;
-                return name.length > 40 ? name.substring(0, 40) + "..." : name;
+
+                // Helper function to create more balanced line breaks
+                const createBalancedLines = (words) => {
+                    if (words.length <= 2) return [words.join(" ")];
+
+                    const totalChars = words.join(" ").length;
+                    const targetLineLength = Math.ceil(totalChars / 2);
+
+                    let line1 = "";
+                    let line2 = "";
+                    let currentLength = 0;
+
+                    for (let i = 0; i < words.length; i++) {
+                        const wordWithSpace = (i === 0 ? "" : " ") + words[i];
+                        const newLength = currentLength + wordWithSpace.length;
+
+                        // If adding this word would exceed target and we have at least one word
+                        if (newLength > targetLineLength && line1.length > 0) {
+                            line2 = words.slice(i).join(" ");
+                            break;
+                        } else {
+                            line1 += wordWithSpace;
+                            currentLength = newLength;
+                        }
+                    }
+
+                    // If line2 is empty, split at midpoint
+                    if (!line2) {
+                        const midPoint = Math.ceil(words.length / 2);
+                        line1 = words.slice(0, midPoint).join(" ");
+                        line2 = words.slice(midPoint).join(" ");
+                    }
+
+                    return [line1, line2];
+                };
+
+                // Split long names into multiple lines for better readability
+                const words = name.split(" ");
+                if (words.length > 2 && name.length > 20) {
+                    text.text(""); // Clear existing text
+
+                    const [line1, line2] = createBalancedLines(words);
+
+                    // Add first tspan
+                    text.append("tspan")
+                        .attr("x", 0)
+                        .attr("dy", "-0.4em")
+                        .text(line1);
+
+                    // Add second tspan
+                    text.append("tspan")
+                        .attr("x", 0)
+                        .attr("dy", "1.2em")
+                        .text(line2);
+                } else {
+                    // Keep single line for shorter names
+                    text.text(
+                        name.length > 30 ? name.substring(0, 27) + "..." : name
+                    );
+                }
             });
     }, [data, dimensions, searchQuery, selectedItem]);
 
@@ -368,13 +425,13 @@ export function SunburstChart({
                 style={{ display: "none" }}
             />
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="text-center bg-background/90 rounded-full p-6 shadow-lg border">
+                <div className="flex flex-col items-center justify-center text-center bg-background rounded-full p-6 shadow-lg w-[160px] h-[160px]">
                     <h3 className="text-lg font-semibold text-foreground">
-                        AI Safety
+                        Collinear
                     </h3>
-                    <p className="text-sm text-muted-foreground">Taxonomy</p>
+                    <p className="text-sm text-muted-foreground">AI Safety</p>
                     <div className="text-xs text-muted-foreground mt-2">
-                        <span>{data.categories.length}</span> Categories
+                        Taxonomy
                     </div>
                 </div>
             </div>
