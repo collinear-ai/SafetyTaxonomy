@@ -48,10 +48,20 @@ export function SunburstChart({
     svg.selectAll('*').remove()
 
     const { width, height } = dimensions
-    const radius = Math.min(width, height) / 2
+    // Use the viewBox dimensions for the circle size, not the responsive container dimensions
+    const viewBoxWidth = 600
+    const viewBoxHeight = 600
+    const radius = Math.min(viewBoxWidth, viewBoxHeight) / 2 - 10 // Use full viewBox with 10px margin
+
+    console.log(
+      'Calculated radius:',
+      radius,
+      'Expected circle diameter:',
+      radius * 2,
+    )
 
     const g = svg
-      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('viewBox', `0 0 ${viewBoxWidth} ${viewBoxHeight}`)
       .on('click', function (event) {
         // Deselect if clicking on background (not on any path)
         if (event.target === this) {
@@ -59,7 +69,7 @@ export function SunburstChart({
         }
       })
       .append('g')
-      .attr('transform', `translate(${width / 2},${height / 2})`)
+      .attr('transform', `translate(${viewBoxWidth / 2},${viewBoxHeight / 2})`)
 
     // Create hierarchy data
     const hierarchyData = createHierarchyData(data)
@@ -68,9 +78,40 @@ export function SunburstChart({
       .sum((d) => d.value || 0)
       .sort((a, b) => (b.value || 0) - (a.value || 0))
 
-    const partition = d3.partition<HierarchyNode>().size([2 * Math.PI, radius])
+    // The issue is that D3's partition isn't using our full radius
+    // Let's directly control the radial positioning
+    const l1InnerRadius = radius * 0.12 // Match centerHoleRadius
+    const l1OuterRadius = radius * 0.7 // Give L1 most of the space
+    const l2OuterRadius = radius * 0.9 // L2 extends further out
+    const l3OuterRadius = radius // L3 goes to the edge
 
+    const partition = d3.partition<HierarchyNode>().size([2 * Math.PI, radius])
     partition(root)
+
+    // Override D3's radial positioning with our custom layout
+    root.descendants().forEach((d) => {
+      if (d.depth === 1) {
+        d.y0 = l1InnerRadius
+        d.y1 = l1OuterRadius
+      } else if (d.depth === 2) {
+        d.y0 = l1OuterRadius
+        d.y1 = l2OuterRadius
+      } else if (d.depth === 3) {
+        d.y0 = l2OuterRadius
+        d.y1 = l3OuterRadius
+      }
+    })
+
+    // Debug: Check what the partition layout is generating after scaling
+    const l1Nodes = root.descendants().filter((d) => d.depth === 1)
+    if (l1Nodes.length > 0) {
+      console.log(
+        'L1 node y1 (outer radius) after scaling:',
+        l1Nodes[0].y1,
+        'Expected:',
+        radius,
+      )
+    }
 
     // Fix gaps by ensuring children perfectly fill their parent's angular space
     root.descendants().forEach((d) => {
@@ -94,17 +135,13 @@ export function SunburstChart({
       .arc<d3.HierarchyRectangularNode<HierarchyNode>>()
       .startAngle((d) => d.x0)
       .endAngle((d) => d.x1)
-      .innerRadius((d) => {
-        if (d.depth === 1) return centerHoleRadius // L1 starts right after center
-        if (d.depth === 2) return d.y0 // L2 uses normal positioning
-        return d.y0 // L3 uses normal positioning
-      })
+      .innerRadius((d) => d.y0) // Use the custom radial positioning we set
       .outerRadius((d) => {
         if (d.depth === 3) {
-          // L3 gets much smaller radial height - only 20% of what it would normally be
-          const normalHeight = d.y1 - d.y0
-          const reducedHeight = normalHeight * 0.2
-          return d.y0 + reducedHeight
+          // L3 gets 30% of the L3 ring space (50% bigger than the original 20%)
+          const l3RingHeight = l3OuterRadius - l2OuterRadius
+          const reducedHeight = l3RingHeight * 0.3
+          return l2OuterRadius + reducedHeight
         }
         return d.y1
       })
@@ -300,11 +337,11 @@ export function SunburstChart({
 
           return `hsl(${hue}deg ${saturation}% ${lightness}%)`
         } else {
-          // L3 categories - very light orange
+          // L3 categories - darker orange for better visibility
           if (isGrayed) {
             return 'hsl(0, 0%, 90%)'
           }
-          return 'hsl(23.25deg 93.02% 90%)' // Very light orange for L3
+          return 'hsl(23.25deg 93.02% 75%)' // Darker orange for L3 (was 90%)
         }
       })
       .style('stroke', (d) => {
@@ -390,20 +427,21 @@ export function SunburstChart({
       .attr('class', 'l1-label')
       .attr('transform', (d) => {
         const angle = (d.x0 + d.x1) / 2
-        // Move text further inward by using 45% of the way from inner to outer radius
-        const radius = d.y0 + (d.y1 - d.y0) * 0.35
-        const x = Math.cos(angle - Math.PI / 2) * radius
-        const y = Math.sin(angle - Math.PI / 2) * radius
+        // Move text 15% further out from center for better breathing room
+        const ringCenter = (d.y0 + d.y1) / 2
+        const textRadius = ringCenter + (d.y1 - d.y0) * 0.15
+        const x = Math.cos(angle - Math.PI / 2) * textRadius
+        const y = Math.sin(angle - Math.PI / 2) * textRadius
 
         return `translate(${x},${y})`
       })
       .style('text-anchor', 'middle')
       .style('dominant-baseline', 'middle')
       .style('font-size', (d) => {
-        // Adjust font size based on arc width - smaller for responsive design
+        // Larger font sizes for the bigger circle
         const arcAngle = d.x1 - d.x0
-        const baseSize = Math.min(12, arcAngle * 60) // Smaller scale factor
-        return `${Math.max(9, baseSize)}px`
+        const baseSize = Math.min(14, arcAngle * 80) // Increased scale factor and max size
+        return `${Math.max(12, baseSize)}px` // Increased minimum size
       })
       .style('font-weight', '400')
       .style('fill', '#2C2C2C')
@@ -477,11 +515,11 @@ export function SunburstChart({
         style={{ display: 'none' }}
       />
       <div className='absolute inset-0 flex items-center justify-center pointer-events-none'>
-        <div className='flex flex-col items-center justify-center text-center bg-background rounded-full p-4 shadow-lg w-[120px] h-[120px]'>
-          <h3 className='text-sm font-semibold text-foreground libre-caslon-display-regular'>
+        <div className='flex flex-col items-center justify-center text-center bg-background rounded-full p-6 shadow-lg w-[160px] h-[160px]'>
+          <h3 className='text-lg font-semibold text-foreground libre-caslon-display-regular'>
             Collinear AI
           </h3>
-          <p className='text-xs text-muted-foreground libre-caslon-display-regular'>
+          <p className='text-sm text-muted-foreground libre-caslon-display-regular mt-1'>
             Safety Taxonomy
           </p>
         </div>
