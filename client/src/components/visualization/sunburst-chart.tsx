@@ -11,7 +11,7 @@ import { createHierarchyData, HierarchyNode } from '@/lib/taxonomy-utils'
 interface SunburstChartProps {
   data: TaxonomyData
   onSelectionChange: (
-    selected: TaxonomyCategory | TaxonomySubcategory | null,
+    selected: TaxonomyCategory | TaxonomySubcategory | TaxonomyItem | null,
   ) => void
   searchQuery: string
   selectedItem: TaxonomyCategory | TaxonomySubcategory | TaxonomyItem | null
@@ -81,9 +81,18 @@ export function SunburstChart({
       .endAngle((d) => d.x1)
       .innerRadius((d) => {
         if (d.depth === 1) return centerHoleRadius // L1 starts right after center
-        return d.y0 // L2 uses normal positioning
+        if (d.depth === 2) return d.y0 // L2 uses normal positioning
+        return d.y0 // L3 uses normal positioning
       })
-      .outerRadius((d) => d.y1)
+      .outerRadius((d) => {
+        if (d.depth === 3) {
+          // L3 gets much smaller radial height - only 20% of what it would normally be
+          const normalHeight = d.y1 - d.y0
+          const reducedHeight = normalHeight * 0.2
+          return d.y0 + reducedHeight
+        }
+        return d.y1
+      })
 
     // Filter based on search
     const filteredNodes = root
@@ -162,7 +171,7 @@ export function SunburstChart({
               )
               return currentL1Name !== parentL1?.name
             }
-          } else {
+          } else if (d.depth === 2) {
             // For L2 categories
             const parentL1Name = d.parent?.data.name
             const currentL2Name = d.data.name
@@ -200,6 +209,47 @@ export function SunburstChart({
                 return currentL2Name !== parentL2?.name // Same L1, gray out if different L2
               }
             }
+          } else {
+            // For L3 categories
+            const parentL1Name = d.parent?.parent?.data.name
+            const parentL2Name = d.parent?.data.name
+            const currentL3Name = d.data.name
+
+            if ('subcategories' in selectedItem) {
+              // Selected item is an L1 category - gray out if different L1
+              return parentL1Name !== selectedItem.name
+            } else if ('items' in selectedItem) {
+              // Selected item is an L2 category - find its parent L1
+              const parentL1 = data.categories.find((cat) =>
+                cat.subcategories.some((sub) => sub.name === selectedItem.name),
+              )
+
+              // Gray out if different L1 OR if same L1 but different L2
+              if (parentL1Name !== parentL1?.name) {
+                return true // Different L1, so gray out
+              } else {
+                return parentL2Name !== selectedItem.name // Same L1, gray out if different L2
+              }
+            } else {
+              // Selected item is an L3/item
+              const parentL1 = data.categories.find((cat) =>
+                cat.subcategories.some((sub) =>
+                  sub.items.some((item) => item.id === selectedItem.id),
+                ),
+              )
+              const parentL2 = parentL1?.subcategories.find((sub) =>
+                sub.items.some((item) => item.id === selectedItem.id),
+              )
+
+              // Gray out if different L1 OR different L2 OR different L3
+              if (parentL1Name !== parentL1?.name) {
+                return true // Different L1, so gray out
+              } else if (parentL2Name !== parentL2?.name) {
+                return true // Different L2, so gray out
+              } else {
+                return currentL3Name !== selectedItem.l3Category // Same L1 and L2, gray out if different L3
+              }
+            }
           }
         }
 
@@ -209,7 +259,7 @@ export function SunburstChart({
           // L1 categories - use their specific colors
           const baseColor = d.data.color || '#3B82F6'
           return isGrayed ? 'hsl(0, 0%, 80%)' : baseColor
-        } else {
+        } else if (d.depth === 2) {
           // L2 categories - gradient from light to dark orange
           if (isGrayed) {
             return 'hsl(0, 0%, 85%)'
@@ -234,10 +284,20 @@ export function SunburstChart({
           const hue = 23.25 - gradientPosition * (23.25 - 17.56)
 
           return `hsl(${hue}deg ${saturation}% ${lightness}%)`
+        } else {
+          // L3 categories - very light orange
+          if (isGrayed) {
+            return 'hsl(0, 0%, 90%)'
+          }
+          return 'hsl(23.25deg 93.02% 90%)' // Very light orange for L3
         }
       })
       .style('stroke', '#fff')
-      .style('stroke-width', (d) => (d.depth === 1 ? 3 : 0.5))
+      .style('stroke-width', (d) => {
+        if (d.depth === 1) return 3
+        if (d.depth === 2) return 0.5
+        return 0.2 // L3 has very thin strokes
+      })
       .style('cursor', 'pointer')
       .style('opacity', searchQuery ? 0.6 : 0.8)
       .style('transition', 'fill 0.4s ease')
@@ -287,6 +347,7 @@ export function SunburstChart({
           const clickedItem = d.data.data as
             | TaxonomyCategory
             | TaxonomySubcategory
+            | TaxonomyItem
           // If clicking the same item, deselect it
           if (
             selectedItem &&
