@@ -31,7 +31,7 @@ export function SunburstChart({
         const handleResize = () => {
             if (svgRef.current?.parentElement) {
                 const parentWidth = svgRef.current.parentElement.clientWidth;
-                const size = Math.min(parentWidth - 32, 600);
+                const size = Math.min(parentWidth - 24, 600);
                 setDimensions({ width: size, height: size });
             }
         };
@@ -74,11 +74,17 @@ export function SunburstChart({
 
         partition(root);
 
+        // Small fixed inner circle - just bigger than center text
+        const centerHoleRadius = radius * 0.12; // Smaller hole for smaller chart
+
         const arc = d3
             .arc<d3.HierarchyRectangularNode<HierarchyNode>>()
             .startAngle((d) => d.x0)
             .endAngle((d) => d.x1)
-            .innerRadius((d) => d.y0)
+            .innerRadius((d) => {
+                if (d.depth === 1) return centerHoleRadius; // L1 starts right after center
+                return d.y0; // L2 uses normal positioning
+            })
             .outerRadius((d) => d.y1);
 
         // Filter based on search
@@ -326,7 +332,8 @@ export function SunburstChart({
             .attr("class", "l1-label")
             .attr("transform", (d) => {
                 const angle = (d.x0 + d.x1) / 2;
-                const radius = (d.y0 + d.y1) / 2;
+                // Move text further inward by using 45% of the way from inner to outer radius
+                const radius = d.y0 + (d.y1 - d.y0) * 0.35;
                 const x = Math.cos(angle - Math.PI / 2) * radius;
                 const y = Math.sin(angle - Math.PI / 2) * radius;
 
@@ -335,10 +342,10 @@ export function SunburstChart({
             .style("text-anchor", "middle")
             .style("dominant-baseline", "middle")
             .style("font-size", (d) => {
-                // Adjust font size based on arc width
+                // Adjust font size based on arc width - smaller for responsive design
                 const arcAngle = d.x1 - d.x0;
-                const baseSize = Math.min(14, arcAngle * 80); // Scale with arc size
-                return `${Math.max(11, baseSize)}px`;
+                const baseSize = Math.min(12, arcAngle * 60); // Smaller scale factor
+                return `${Math.max(9, baseSize)}px`;
             })
             .style("font-weight", "400")
             .style("fill", "#2C2C2C")
@@ -425,12 +432,12 @@ export function SunburstChart({
                 style={{ display: "none" }}
             />
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="flex flex-col items-center justify-center text-center bg-background rounded-full p-6 shadow-lg w-[160px] h-[160px]">
-                    <h3 className="text-lg font-semibold text-foreground">
+                <div className="flex flex-col items-center justify-center text-center bg-background rounded-full p-4 shadow-lg w-[120px] h-[120px]">
+                    <h3 className="text-sm font-semibold text-foreground">
                         Collinear
                     </h3>
-                    <p className="text-sm text-muted-foreground">AI Safety</p>
-                    <div className="text-xs text-muted-foreground mt-2">
+                    <p className="text-xs text-muted-foreground">AI Safety</p>
+                    <div className="text-xs text-muted-foreground mt-1">
                         Taxonomy
                     </div>
                 </div>

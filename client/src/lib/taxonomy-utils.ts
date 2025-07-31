@@ -22,9 +22,7 @@ export function createHierarchyData(taxonomyData: TaxonomyData): HierarchyNode {
             data: category,
             children: category.subcategories.map((subcategory) => ({
                 name: subcategory.name,
-                value:
-                    Math.sqrt(category.subcategories.length) /
-                    category.subcategories.length, // Smoothed proportional sizing for L1
+                value: 1 / category.subcategories.length, // Equal L2 slices, equal L1 total values
                 data: subcategory,
             })),
         })),
