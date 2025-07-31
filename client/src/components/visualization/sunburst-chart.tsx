@@ -72,6 +72,15 @@ export function SunburstChart({
 
     partition(root)
 
+    // Ensure all L3 arcs fill their full angular width by rounding to prevent gaps
+    root.descendants().forEach((d) => {
+      if (d.depth === 3) {
+        // Round the angles to prevent floating-point precision issues
+        d.x0 = Math.round(d.x0 * 1000000) / 1000000
+        d.x1 = Math.round(d.x1 * 1000000) / 1000000
+      }
+    })
+
     // Small fixed inner circle - just bigger than center text
     const centerHoleRadius = radius * 0.12 // Smaller hole for smaller chart
 
@@ -292,20 +301,24 @@ export function SunburstChart({
           return 'hsl(23.25deg 93.02% 90%)' // Very light orange for L3
         }
       })
-      .style('stroke', '#fff')
+      .style('stroke', (d) => {
+        if (d.depth === 3) return 'transparent' // L3 has transparent stroke
+        return '#fff' // L1 and L2 have white strokes
+      })
       .style('stroke-width', (d) => {
         if (d.depth === 1) return 3
         if (d.depth === 2) return 0.5
-        return 0.2 // L3 has very thin strokes
+        return 0 // L3 has no stroke width
       })
       .style('cursor', 'pointer')
       .style('opacity', searchQuery ? 0.6 : 0.8)
       .style('transition', 'fill 0.4s ease')
       .on('mouseover', function (event, d) {
+        // Increase opacity for all levels on hover
         d3.select(this).style('opacity', 1)
 
-        // Show tooltip for L2 categories
-        if (d.depth === 2 && tooltipRef.current) {
+        // Show tooltip for L2 and L3 categories
+        if ((d.depth === 2 || d.depth === 3) && tooltipRef.current) {
           const tooltip = tooltipRef.current
           tooltip.textContent = d.data.name
           tooltip.style.display = 'block'
@@ -322,8 +335,8 @@ export function SunburstChart({
         }
       })
       .on('mousemove', function (event, d) {
-        // Update tooltip position on mouse move for L2 categories
-        if (d.depth === 2 && tooltipRef.current) {
+        // Update tooltip position on mouse move for L2 and L3 categories
+        if ((d.depth === 2 || d.depth === 3) && tooltipRef.current) {
           const tooltip = tooltipRef.current
           const containerRect =
             svgRef.current!.parentElement!.getBoundingClientRect()
@@ -337,8 +350,8 @@ export function SunburstChart({
       .on('mouseout', function (event, d) {
         d3.select(this).style('opacity', searchQuery ? 0.6 : 0.8)
 
-        // Hide tooltip for L2 categories
-        if (d.depth === 2 && tooltipRef.current) {
+        // Hide tooltip for L2 and L3 categories
+        if ((d.depth === 2 || d.depth === 3) && tooltipRef.current) {
           tooltipRef.current.style.display = 'none'
         }
       })
