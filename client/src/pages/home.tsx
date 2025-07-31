@@ -59,7 +59,7 @@ export default function Home() {
             <header className="bg-background shadow-sm border-b border-border flex-none">
                 <div className="w-full mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between items-center py-6">
-                        <div>
+                        <div className="libre-caslon-display-regular">
                             <h1 className="text-2xl font-bold text-foreground">
                                 Collinear AI Safety Taxonomy
                             </h1>
@@ -93,7 +93,7 @@ export default function Home() {
                     <Card className="bg-[#fcfbfa]">
                         <CardHeader>
                             <div className="flex justify-between items-center">
-                                <CardTitle className="text-xl">
+                                <CardTitle className="text-xl libre-caslon-display-regular">
                                     Interactive Safety Taxonomy
                                 </CardTitle>
                                 <div className="flex items-center space-x-4">
