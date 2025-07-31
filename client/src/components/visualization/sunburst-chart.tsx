@@ -360,6 +360,26 @@ export function SunburstChart({
         // Increase opacity for all levels on hover
         d3.select(this).style('opacity', 1)
 
+        // Enhanced hover color for L3 categories
+        if (d.depth === 3) {
+          // Check if parent L2 is selected
+          const parentL2 = d.parent?.data.data as
+            | TaxonomySubcategory
+            | undefined
+          const isParentL2Selected =
+            selectedItem &&
+            'items' in selectedItem &&
+            parentL2?.name === selectedItem.name
+
+          if (isParentL2Selected) {
+            // Vibrant orange when parent L2 is selected
+            d3.select(this).style('fill', 'hsl(17.56deg 88.74% 60%)')
+          } else {
+            // Slightly more vibrant than default for general hover
+            d3.select(this).style('fill', 'hsl(23.25deg 93.02% 65%)')
+          }
+        }
+
         // Show tooltip for L2 and L3 categories
         if ((d.depth === 2 || d.depth === 3) && tooltipRef.current) {
           const tooltip = tooltipRef.current
@@ -392,6 +412,35 @@ export function SunburstChart({
       })
       .on('mouseout', function (event, d) {
         d3.select(this).style('opacity', searchQuery ? 0.6 : 0.8)
+
+        // Restore original color for L3 categories on mouse out
+        if (d.depth === 3) {
+          // Check if this L3 should be grayed out
+          const shouldGrayOut = () => {
+            if (!selectedItem) return false
+            if ('subcategories' in selectedItem) {
+              // L1 selected - gray out if different L1
+              const parentL1Name = d.parent?.parent?.data.name
+              return parentL1Name !== selectedItem.name
+            } else if ('items' in selectedItem) {
+              // L2 selected - gray out if different L2
+              const parentL2 = d.parent?.data.data as
+                | TaxonomySubcategory
+                | undefined
+              return parentL2?.name !== selectedItem.name
+            } else {
+              // L3 selected - gray out if not this L3
+              const currentItem = d.data.data as TaxonomyItem
+              return currentItem.id !== selectedItem.id
+            }
+          }
+
+          if (shouldGrayOut()) {
+            d3.select(this).style('fill', 'hsl(0, 0%, 90%)')
+          } else {
+            d3.select(this).style('fill', 'hsl(23.25deg 93.02% 75%)')
+          }
+        }
 
         // Hide tooltip for L2 and L3 categories
         if ((d.depth === 2 || d.depth === 3) && tooltipRef.current) {
