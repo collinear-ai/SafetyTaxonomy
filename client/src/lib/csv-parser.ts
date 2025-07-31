@@ -1,140 +1,211 @@
-import { TaxonomyData, TaxonomyCategory, TaxonomyItem, Framework } from "@shared/schema";
+import {
+    TaxonomyData,
+    TaxonomyCategory,
+    TaxonomySubcategory,
+    TaxonomyItem,
+    Framework,
+} from "@shared/schema";
 
 const CATEGORY_COLORS = {
-  "Fairness, Bias & Non-Discrimination": "hsl(0, 84%, 60%)",
-  "Governance & Oversight": "hsl(262, 83%, 58%)",
-  "Harmful Content & Misuse": "hsl(0, 76%, 50%)",
-  "Misinformation & Factuality": "hsl(43, 96%, 56%)",
-  "Regulatory & Compliance": "hsl(158, 64%, 52%)",
-  "Security, Privacy & Data Protection": "hsl(221, 83%, 53%)",
-  "Societal, Ethics & Long-Term Risks": "hsl(256, 65%, 58%)"
+    "Fairness, Bias & Non-Discrimination": "hsl(17.56deg 100% 85.74%)",
+    "Governance & Oversight": "hsl(17.56deg 100% 85.74%)",
+    "Harmful Content & Misuse": "hsl(17.56deg 100% 85.74%)",
+    "Misinformation & Factuality": "hsl(17.56deg 100% 85.74%)",
+    "Regulatory & Compliance": "hsl(17.56deg 100% 85.74%)",
+    "Security, Privacy & Data Protection": "hsl(17.56deg 100% 85.74%)",
+    "Societal, Ethics & Long-Term Risks": "hsl(17.56deg 100% 85.74%)",
 };
 
 export function parseTaxonomyCSV(csvContent: string): TaxonomyData {
-  const lines = csvContent.split('\n');
-  const items: TaxonomyItem[] = [];
-  
-  // Skip header row and process data
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    
-    const columns = parseCSVLine(line);
-    if (columns.length < 5) continue; // Need at least L1, L2, L3, Example, and first framework
-    
-    let l1Category = columns[0]?.trim() || '';
-    let l2Category = columns[1]?.trim() || '';
-    let example = columns[3]?.trim() || '';
-    
-    // Remove quotes if present
-    l1Category = l1Category.replace(/^"/, '').replace(/"$/, '');
-    l2Category = l2Category.replace(/^"/, '').replace(/"$/, '');
-    example = example.replace(/^"/, '').replace(/"$/, '');
-    
-    if (!l1Category || !l2Category) {
-      continue;
+    const lines = csvContent.split("\n");
+    const items: TaxonomyItem[] = [];
+
+    // Skip first empty line and header row, then process data
+    // Line 0: empty comma line, Line 1: actual header, Line 2+: data
+    for (let i = 2; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const columns = parseCSVLine(line);
+        if (columns.length < 6) continue; // Need at least empty col, L1, L2, L3, Example, and first framework
+
+        let l1Category = columns[1]?.trim() || "";
+        let l2Category = columns[2]?.trim() || "";
+        let l3Category = columns[3]?.trim() || "";
+        let example = columns[4]?.trim() || "";
+
+        // Remove quotes if present
+        l1Category = l1Category.replace(/^"/, "").replace(/"$/, "");
+        l2Category = l2Category.replace(/^"/, "").replace(/"$/, "");
+        l3Category = l3Category.replace(/^"/, "").replace(/"$/, "");
+        example = example.replace(/^"/, "").replace(/"$/, "");
+
+        if (!l1Category || !l2Category || !l3Category) {
+            continue;
+        }
+
+        // Use a placeholder example if missing
+        if (!example) {
+            example = `Example for ${l3Category}`;
+        }
+
+        // Parse framework support
+        const frameworks: Framework[] = [];
+        const frameworkColumns = [
+            { col: 5, name: "OWASP" as Framework },
+            { col: 6, name: "NIST" as Framework },
+            { col: 7, name: "EU AI Act" as Framework },
+            { col: 8, name: "US EO 14110" as Framework },
+            { col: 9, name: "UK AI Whitepaper" as Framework },
+        ];
+
+        frameworkColumns.forEach(({ col, name }) => {
+            if (columns[col]?.includes("✔️")) {
+                frameworks.push(name);
+            }
+        });
+
+        items.push({
+            id: `${l1Category}-${l2Category}-${l3Category}`.replace(
+                /[^a-zA-Z0-9]/g,
+                "-"
+            ),
+            l1Category,
+            l2Category,
+            l3Category,
+            example,
+            frameworks,
+        });
     }
-    
-    // Use a placeholder example if missing
-    if (!example) {
-      example = `Example for ${l2Category}`;
-    }
-    
-    // Parse framework support
-    const frameworks: Framework[] = [];
-    const frameworkColumns = [
-      { col: 4, name: "OWASP" as Framework },
-      { col: 5, name: "NIST" as Framework },
-      { col: 6, name: "EU AI Act" as Framework },
-      { col: 7, name: "US EO 14110" as Framework },
-      { col: 8, name: "UK AI Whitepaper" as Framework }
+
+    // Group items by L1 -> L2 -> L3 hierarchy
+    const l1Map = new Map<string, Map<string, TaxonomyItem[]>>();
+
+    items.forEach((item) => {
+        if (!l1Map.has(item.l1Category)) {
+            l1Map.set(item.l1Category, new Map());
+        }
+        const l2Map = l1Map.get(item.l1Category)!;
+
+        if (!l2Map.has(item.l2Category)) {
+            l2Map.set(item.l2Category, []);
+        }
+        l2Map.get(item.l2Category)!.push(item);
+    });
+
+    // Create categories with proper L1 -> L2 -> L3 hierarchy
+    const categories: TaxonomyCategory[] = [];
+    const allFrameworks: Framework[] = [
+        "OWASP",
+        "NIST",
+        "EU AI Act",
+        "US EO 14110",
+        "UK AI Whitepaper",
     ];
-    
-    frameworkColumns.forEach(({ col, name }) => {
-      if (columns[col]?.includes('✔️')) {
-        frameworks.push(name);
-      }
+    const overallCoverage: Record<Framework, number> = {
+        OWASP: 0,
+        NIST: 0,
+        "EU AI Act": 0,
+        "US EO 14110": 0,
+        "UK AI Whitepaper": 0,
+    };
+
+    // Overall coverage is already initialized above
+
+    l1Map.forEach((l2Map, l1CategoryName) => {
+        const subcategories: TaxonomySubcategory[] = [];
+        const allL1Items: TaxonomyItem[] = [];
+
+        // Create L2 subcategories
+        l2Map.forEach((l3Items, l2CategoryName) => {
+            // Calculate framework coverage for this L2 category
+            const l2FrameworkCoverage: Record<Framework, number> = {} as Record<
+                Framework,
+                number
+            >;
+
+            allFrameworks.forEach((framework) => {
+                const supportedCount = l3Items.filter((item) =>
+                    item.frameworks.includes(framework)
+                ).length;
+                const coverage =
+                    l3Items.length > 0
+                        ? Math.round((supportedCount / l3Items.length) * 100)
+                        : 0;
+                l2FrameworkCoverage[framework] = coverage;
+            });
+
+            subcategories.push({
+                name: l2CategoryName,
+                items: l3Items,
+                frameworkCoverage: l2FrameworkCoverage,
+            });
+
+            allL1Items.push(...l3Items);
+        });
+
+        // Calculate framework coverage for the entire L1 category
+        const l1FrameworkCoverage: Record<Framework, number> = {} as Record<
+            Framework,
+            number
+        >;
+
+        allFrameworks.forEach((framework) => {
+            const supportedCount = allL1Items.filter((item) =>
+                item.frameworks.includes(framework)
+            ).length;
+            const coverage =
+                allL1Items.length > 0
+                    ? Math.round((supportedCount / allL1Items.length) * 100)
+                    : 0;
+            l1FrameworkCoverage[framework] = coverage;
+            overallCoverage[framework] += supportedCount;
+        });
+
+        categories.push({
+            name: l1CategoryName,
+            color:
+                CATEGORY_COLORS[
+                    l1CategoryName as keyof typeof CATEGORY_COLORS
+                ] || "hsl(17.56deg 88.74% 54.71%)",
+            subcategories,
+            frameworkCoverage: l1FrameworkCoverage,
+        });
     });
-    
-    items.push({
-      id: `${l1Category}-${l2Category}`.replace(/[^a-zA-Z0-9]/g, '-'),
-      l1Category,
-      l2Category,
-      example,
-      frameworks
+
+    // Calculate overall coverage percentages
+    const totalItems = items.length;
+    allFrameworks.forEach((framework) => {
+        overallCoverage[framework] = Math.round(
+            (overallCoverage[framework] / totalItems) * 100
+        );
     });
-  }
-  
-  // Group items by L1 category
-  const categoryMap = new Map<string, TaxonomyItem[]>();
-  items.forEach(item => {
-    if (!categoryMap.has(item.l1Category)) {
-      categoryMap.set(item.l1Category, []);
-    }
-    categoryMap.get(item.l1Category)!.push(item);
-  });
-  
-  // Create categories with coverage statistics
-  const categories: TaxonomyCategory[] = [];
-  const allFrameworks: Framework[] = ["OWASP", "NIST", "EU AI Act", "US EO 14110", "UK AI Whitepaper"];
-  const overallCoverage: Record<Framework, number> = {} as Record<Framework, number>;
-  
-  // Initialize overall coverage
-  allFrameworks.forEach(fw => {
-    overallCoverage[fw] = 0;
-  });
-  
-  categoryMap.forEach((subcategories, categoryName) => {
-    const frameworkCoverage: Record<Framework, number> = {} as Record<Framework, number>;
-    
-    allFrameworks.forEach(framework => {
-      const supportedCount = subcategories.filter(item => 
-        item.frameworks.includes(framework)
-      ).length;
-      const coverage = Math.round((supportedCount / subcategories.length) * 100);
-      frameworkCoverage[framework] = coverage;
-      overallCoverage[framework] += supportedCount;
-    });
-    
-    categories.push({
-      name: categoryName,
-      color: CATEGORY_COLORS[categoryName as keyof typeof CATEGORY_COLORS] || "hsl(200, 50%, 50%)",
-      subcategories,
-      frameworkCoverage
-    });
-  });
-  
-  // Calculate overall coverage percentages
-  const totalItems = items.length;
-  allFrameworks.forEach(framework => {
-    overallCoverage[framework] = Math.round((overallCoverage[framework] / totalItems) * 100);
-  });
-  
-  return {
-    categories,
-    totalItems,
-    overallCoverage
-  };
+
+    return {
+        categories,
+        totalItems,
+        overallCoverage,
+    };
 }
 
 function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current);
-      current = '';
-    } else {
-      current += char;
+    const result: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === "," && !inQuotes) {
+            result.push(current);
+            current = "";
+        } else {
+            current += char;
+        }
     }
-  }
-  
-  result.push(current);
-  return result;
+
+    result.push(current);
+    return result;
 }
