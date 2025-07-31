@@ -433,13 +433,12 @@ export function SunburstChart({
             />
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="flex flex-col items-center justify-center text-center bg-background rounded-full p-4 shadow-lg w-[120px] h-[120px]">
-                    <h3 className="text-sm font-semibold text-foreground">
-                        Collinear
+                    <h3 className="text-sm font-semibold text-foreground libre-caslon-display-regular">
+                        Collinear AI
                     </h3>
-                    <p className="text-xs text-muted-foreground">AI Safety</p>
-                    <div className="text-xs text-muted-foreground mt-1">
-                        Taxonomy
-                    </div>
+                    <p className="text-xs text-muted-foreground libre-caslon-display-regular">
+                        Safety Taxonomy
+                    </p>
                 </div>
             </div>
         </div>

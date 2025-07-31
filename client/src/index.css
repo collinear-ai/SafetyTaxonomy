@@ -74,6 +74,12 @@
     pointer-events: none;
 }
 
+.libre-caslon-display-regular {
+    font-family: "Libre Caslon Display", serif;
+    font-weight: 400;
+    font-style: normal;
+}
+
 .framework-badge-owasp {
     background-color: var(--framework-owasp);
 }
