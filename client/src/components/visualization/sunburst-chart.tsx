@@ -8,6 +8,9 @@ import {
 } from '@shared/schema'
 import { createHierarchyData, HierarchyNode } from '@/lib/taxonomy-utils'
 
+// Extended type to include partition layout properties
+type PartitionNode = d3.HierarchyRectangularNode<HierarchyNode>
+
 interface SunburstChartProps {
   data: TaxonomyData
   onSelectionChange: (
@@ -31,7 +34,8 @@ export function SunburstChart({
     const handleResize = () => {
       if (svgRef.current?.parentElement) {
         const parentWidth = svgRef.current.parentElement.clientWidth
-        const size = Math.min(parentWidth - 24, 600)
+        const parentHeight = svgRef.current.parentElement.clientHeight
+        const size = Math.min(parentWidth - 24, parentHeight - 24)
         setDimensions({ width: size, height: size })
       }
     }
@@ -49,8 +53,8 @@ export function SunburstChart({
 
     const { width, height } = dimensions
     // Use the viewBox dimensions for the circle size, not the responsive container dimensions
-    const viewBoxWidth = 600
-    const viewBoxHeight = 600
+    const viewBoxWidth = width
+    const viewBoxHeight = height
     const radius = Math.min(viewBoxWidth, viewBoxHeight) / 2 - 10 // Use full viewBox with 10px margin
 
     console.log(
@@ -81,15 +85,26 @@ export function SunburstChart({
     // The issue is that D3's partition isn't using our full radius
     // Let's directly control the radial positioning
     const l1InnerRadius = radius * 0.12 // Match centerHoleRadius
-    const l1OuterRadius = radius * 0.7 // Give L1 most of the space
-    const l2OuterRadius = radius * 0.9 // L2 extends further out
-    const l3OuterRadius = radius // L3 goes to the edge
+
+    // Adjust ring sizes based on whether we have a selection
+    let l1OuterRadius, l2OuterRadius, l3OuterRadius
+    if (selectedItem) {
+      // When selected: make L1 smaller, L2 and L3 bigger for better detail view
+      l1OuterRadius = radius * 0.45 // Reduced from 0.7 - much smaller L1 ring
+      l2OuterRadius = radius * 0.75 // Increased from 0.9 - bigger L2 ring
+      l3OuterRadius = radius // L3 still goes to the edge but gets more space
+    } else {
+      // Default sizes for full view
+      l1OuterRadius = radius * 0.7 // Give L1 most of the space
+      l2OuterRadius = radius * 0.9 // L2 extends further out
+      l3OuterRadius = radius // L3 goes to the edge
+    }
 
     const partition = d3.partition<HierarchyNode>().size([2 * Math.PI, radius])
-    partition(root)
+    const partitionedRoot = partition(root) as PartitionNode
 
     // Override D3's radial positioning with our custom layout
-    root.descendants().forEach((d) => {
+    partitionedRoot.descendants().forEach((d) => {
       if (d.depth === 1) {
         d.y0 = l1InnerRadius
         d.y1 = l1OuterRadius
@@ -103,7 +118,7 @@ export function SunburstChart({
     })
 
     // Debug: Check what the partition layout is generating after scaling
-    const l1Nodes = root.descendants().filter((d) => d.depth === 1)
+    const l1Nodes = partitionedRoot.descendants().filter((d) => d.depth === 1)
     if (l1Nodes.length > 0) {
       console.log(
         'L1 node y1 (outer radius) after scaling:',
@@ -114,7 +129,7 @@ export function SunburstChart({
     }
 
     // Fix gaps by ensuring children perfectly fill their parent's angular space
-    root.descendants().forEach((d) => {
+    partitionedRoot.descendants().forEach((d) => {
       if (d.children && d.children.length > 0) {
         // For any node with children, ensure children perfectly span the parent's angular range
         const parentAngularSize = d.x1 - d.x0
@@ -132,7 +147,7 @@ export function SunburstChart({
     const centerHoleRadius = radius * 0.12 // Smaller hole for smaller chart
 
     const arc = d3
-      .arc<d3.HierarchyRectangularNode<HierarchyNode>>()
+      .arc<PartitionNode>()
       .startAngle((d) => d.x0)
       .endAngle((d) => d.x1)
       .innerRadius((d) => d.y0) // Use the custom radial positioning we set
@@ -147,7 +162,7 @@ export function SunburstChart({
       })
 
     // Filter based on search
-    const filteredNodes = root
+    const filteredNodes = partitionedRoot
       .descendants()
       .slice(1)
       .filter((d) => {
@@ -189,10 +204,105 @@ export function SunburstChart({
         return d.data.name.toLowerCase().includes(query)
       })
 
+    // Filter nodes to show only selected L1 slice when zoomed
+    let displayNodes = filteredNodes
+    let isZoomed = false
+
+    if (selectedItem) {
+      // Find the target L1 section based on selected item
+      let targetL1Name: string | undefined
+
+      if ('subcategories' in selectedItem) {
+        // L1 selected
+        targetL1Name = selectedItem.name
+      } else if ('items' in selectedItem) {
+        // L2 selected - find parent L1
+        const parentL1 = data.categories.find((cat) =>
+          cat.subcategories.some((sub) => sub.name === selectedItem.name),
+        )
+        targetL1Name = parentL1?.name
+      } else {
+        // L3 selected - find parent L1
+        const parentL1 = data.categories.find((cat) =>
+          cat.subcategories.some((sub) =>
+            sub.items.some((item) => item.id === selectedItem.id),
+          ),
+        )
+        targetL1Name = parentL1?.name
+      }
+
+      // Filter to show only the selected L1 slice and its children
+      if (targetL1Name) {
+        displayNodes = filteredNodes.filter((d) => {
+          if (d.depth === 1) {
+            return d.data.name === targetL1Name
+          } else if (d.depth === 2) {
+            return d.parent?.data.name === targetL1Name
+          } else if (d.depth === 3) {
+            return d.parent?.parent?.data.name === targetL1Name
+          }
+          return false
+        })
+        isZoomed = true
+
+        // Recalculate the angles for the focused slice to center it and expand it
+        const targetL1Node = displayNodes.find((d) => d.depth === 1)
+        if (targetL1Node) {
+          const originalAngularSize = targetL1Node.x1 - targetL1Node.x0
+          const originalStartAngle = targetL1Node.x0
+
+          // Expand the slice to fill more of the circle (about 80% of 2π)
+          const newAngularSize = Math.PI * 1.6
+          const newStartAngle = -newAngularSize / 2
+          const newEndAngle = newAngularSize / 2
+
+          // Update the L1 node angles
+          targetL1Node.x0 = newStartAngle
+          targetL1Node.x1 = newEndAngle
+
+          // Recalculate child angles proportionally
+          const l2Nodes = displayNodes.filter((d) => d.depth === 2)
+          l2Nodes.forEach((l2Node) => {
+            const originalL2Start = l2Node.x0
+            const originalL2End = l2Node.x1
+            const proportionStart =
+              (originalL2Start - originalStartAngle) / originalAngularSize
+            const proportionEnd =
+              (originalL2End - originalStartAngle) / originalAngularSize
+
+            l2Node.x0 = newStartAngle + proportionStart * newAngularSize
+            l2Node.x1 = newStartAngle + proportionEnd * newAngularSize
+
+            // Update L3 children of this L2
+            const l3Children = displayNodes.filter(
+              (d) => d.depth === 3 && d.parent === l2Node,
+            )
+            l3Children.forEach((l3Node) => {
+              const originalL3Start = l3Node.x0
+              const originalL3End = l3Node.x1
+              const l3ProportionStart =
+                (originalL3Start - originalL2Start) /
+                (originalL2End - originalL2Start)
+              const l3ProportionEnd =
+                (originalL3End - originalL2Start) /
+                (originalL2End - originalL2Start)
+
+              l3Node.x0 =
+                l2Node.x0 + l3ProportionStart * (l2Node.x1 - l2Node.x0)
+              l3Node.x1 = l2Node.x0 + l3ProportionEnd * (l2Node.x1 - l2Node.x0)
+            })
+          })
+        }
+      }
+    }
+
+    // Set transform (always centered, no zoom transform needed since we're filtering nodes)
+    g.attr('transform', `translate(${viewBoxWidth / 2},${viewBoxHeight / 2})`)
+
     // Create paths
     const path = g
       .selectAll('path')
-      .data(filteredNodes)
+      .data(displayNodes)
       .enter()
       .append('path')
       .attr('d', arc)
@@ -345,13 +455,13 @@ export function SunburstChart({
         }
       })
       .style('stroke', (d) => {
-        if (d.depth === 3) return 'transparent' // L3 has transparent stroke
+        // if (d.depth === 3) return 'transparent' // L3 has transparent stroke
         return '#fff' // L1 and L2 have white strokes
       })
       .style('stroke-width', (d) => {
         if (d.depth === 1) return 3
         if (d.depth === 2) return 0.5
-        return 0 // L3 has no stroke width
+        return 0.5 // L3 has no stroke width
       })
       .style('cursor', 'pointer')
       .style('opacity', searchQuery ? 0.6 : 0.8)
@@ -470,7 +580,7 @@ export function SunburstChart({
 
     // Add text labels directly in L1 segments
     g.selectAll('text.l1-label')
-      .data(filteredNodes.filter((d) => d.depth === 1))
+      .data(displayNodes.filter((d) => d.depth === 1))
       .enter()
       .append('text')
       .attr('class', 'l1-label')
@@ -480,17 +590,28 @@ export function SunburstChart({
         const ringCenter = (d.y0 + d.y1) / 2
         const textRadius = ringCenter + (d.y1 - d.y0) * 0.15
         const x = Math.cos(angle - Math.PI / 2) * textRadius
-        const y = Math.sin(angle - Math.PI / 2) * textRadius
+        let y = Math.sin(angle - Math.PI / 2) * textRadius
+
+        if (isZoomed) {
+          y = Math.sin(angle - Math.PI / 2) * textRadius * 0.75
+        }
 
         return `translate(${x},${y})`
       })
       .style('text-anchor', 'middle')
       .style('dominant-baseline', 'middle')
       .style('font-size', (d) => {
-        // Larger font sizes for the bigger circle
-        const arcAngle = d.x1 - d.x0
-        const baseSize = Math.min(14, arcAngle * 80) // Increased scale factor and max size
-        return `${Math.max(12, baseSize)}px` // Increased minimum size
+        // Much larger font sizes when zoomed to individual slice
+        if (isZoomed) {
+          const arcAngle = d.x1 - d.x0
+          const baseSize = Math.min(36, arcAngle * 200) // Much larger scale for zoomed view
+          return `${Math.max(36, baseSize)}px` // Much larger minimum size when zoomed
+        } else {
+          // Normal sizes for full view
+          const arcAngle = d.x1 - d.x0
+          const baseSize = Math.min(14, arcAngle * 80)
+          return `${Math.max(24, baseSize)}px`
+        }
       })
       .style('font-weight', '400')
       .style('fill', '#2C2C2C')
@@ -501,7 +622,7 @@ export function SunburstChart({
         const name = d.data.name
 
         // Helper function to create more balanced line breaks
-        const createBalancedLines = (words) => {
+        const createBalancedLines = (words: string[]) => {
           if (words.length <= 2) return [words.join(' ')]
 
           const totalChars = words.join(' ').length
@@ -552,11 +673,409 @@ export function SunburstChart({
           text.text(name.length > 30 ? name.substring(0, 27) + '...' : name)
         }
       })
+
+    // Add L2 labels when any item is selected (L1, L2, or L3)
+    const isL1Selected = selectedItem && 'subcategories' in selectedItem
+    const isL2Selected = selectedItem && 'items' in selectedItem
+    const isL3Selected = selectedItem && 'l3Category' in selectedItem
+
+    if (isL1Selected || isL2Selected || isL3Selected) {
+      let selectedL2Nodes: PartitionNode[]
+
+      if (isL1Selected) {
+        // Show all L2 categories within the selected L1
+        selectedL2Nodes = displayNodes.filter((d) => d.depth === 2)
+      } else if (isL2Selected) {
+        const selectedL2 = selectedItem as TaxonomySubcategory
+        // Find the L2 nodes that belong to the selected L2 category
+        selectedL2Nodes = displayNodes.filter((d) => {
+          return (
+            d.depth === 2 &&
+            d.data.data &&
+            'items' in d.data.data &&
+            (d.data.data as TaxonomySubcategory).name === selectedL2.name
+          )
+        })
+      } else {
+        // Find the parent L2 category for the selected L3 item
+        const selectedL3 = selectedItem as TaxonomyItem
+        const parentL1 = data.categories.find((cat) =>
+          cat.subcategories.some((sub) =>
+            sub.items.some((item) => item.id === selectedL3.id),
+          ),
+        )
+        const selectedL2 = parentL1?.subcategories.find((sub) =>
+          sub.items.some((item) => item.id === selectedL3.id),
+        )!
+
+        selectedL2Nodes = displayNodes.filter((d) => {
+          return (
+            d.depth === 2 &&
+            d.data.data &&
+            'items' in d.data.data &&
+            (d.data.data as TaxonomySubcategory).name === selectedL2.name
+          )
+        })
+      }
+
+      g.selectAll('text.l2-label')
+        .data(selectedL2Nodes)
+        .enter()
+        .append('text')
+        .attr('class', 'l2-label')
+        .attr('transform', (d) => {
+          const angle = (d.x0 + d.x1) / 2
+          // Position text closer to the inner edge of the L2 ring
+          const ringInner = d.y0
+          const ringOuter = d.y1
+          const textRadius = ringInner + (ringOuter - ringInner) * 0.15 // 15% from inner edge
+          const x = Math.cos(angle - Math.PI / 2) * textRadius
+          const y = Math.sin(angle - Math.PI / 2) * textRadius
+
+          // Calculate rotation for radial text that's always readable
+          // Start with the angle aligned to point outward from center
+          let rotationAngle = (angle * 180) / Math.PI - 90
+
+          // Simple rule: if the final rotation would make text upside down (between 90° and 270°), flip it
+          // Normalize first to 0-360 range
+          while (rotationAngle < 0) rotationAngle += 360
+          while (rotationAngle >= 360) rotationAngle -= 360
+
+          // If text would be upside down, rotate 180° to flip it
+          if (rotationAngle > 90 && rotationAngle < 270) {
+            rotationAngle += 180
+          }
+
+          // Final normalization to -180 to 180 range for consistency
+          if (rotationAngle > 180) rotationAngle -= 360
+
+          return `translate(${x},${y}) rotate(${rotationAngle})`
+        })
+        .style('text-anchor', (d) => {
+          const angle = (d.x0 + d.x1) / 2
+
+          // Calculate if text is flipped to determine alignment
+          let rotationAngle = (angle * 180) / Math.PI - 90
+          while (rotationAngle < 0) rotationAngle += 360
+          while (rotationAngle >= 360) rotationAngle -= 360
+
+          let isFlipped = false
+          if (rotationAngle > 90 && rotationAngle < 270) {
+            isFlipped = true
+          }
+
+          // For radial L2 labels, use start/end alignment based on position and flip
+          if (isFlipped) {
+            // Flipped text: right side should be left-aligned, left side right-aligned
+            return angle < Math.PI ? 'end' : 'start'
+          } else {
+            // Normal text: right side should be right-aligned, left side left-aligned
+            return angle < Math.PI ? 'start' : 'end'
+          }
+        })
+        .style('dominant-baseline', 'central')
+        .style('font-size', (d) => {
+          // Font size that fits within the radial section
+          const arcAngle = d.x1 - d.x0
+          const ringWidth = d.y1 - d.y0
+
+          // Scale based on both angular size and radial width
+          const angularScale = Math.min(18, arcAngle * 120)
+          const radialScale = Math.min(16, ringWidth * 0.8)
+          const baseSize = Math.min(angularScale, radialScale)
+
+          return `${Math.max(10, baseSize)}px`
+        })
+        .style('font-weight', '500')
+        .style('fill', '#2C2C2C')
+        .style('font-family', 'system-ui, -apple-system, sans-serif')
+        .style('pointer-events', 'none')
+        .each(function (d) {
+          const text = d3.select(this)
+          const name = d.data.name
+
+          // Get the calculated font size for this element
+          const arcAngle = d.x1 - d.x0
+          const ringWidth = d.y1 - d.y0
+          const angularScale = Math.min(18, arcAngle * 120)
+          const radialScale = Math.min(16, ringWidth * 0.8)
+          const baseSize = Math.min(angularScale, radialScale)
+          const fontSize = Math.max(10, baseSize)
+
+          // Helper function for L2 label text wrapping based on radial constraints
+          const createL2Lines = (words: string[]) => {
+            const fullText = words.join(' ')
+
+            // Estimate text width in pixels (rough approximation)
+            const charWidth = fontSize * 0.6 // Average character width for sans-serif
+            const estimatedTextWidth = fullText.length * charWidth
+
+            // Calculate available radial space (the "height" for rotated text)
+            const availableRadialSpace = ringWidth * 0.8 // Leave some padding
+
+            // If text fits in one line, use it
+            if (estimatedTextWidth <= availableRadialSpace) {
+              return [fullText]
+            }
+
+            // Calculate how many characters can fit per line
+            const charsPerLine = Math.floor(availableRadialSpace / charWidth)
+
+            // For very small sections, truncate to fit
+            if (charsPerLine < 8) {
+              return [
+                fullText.substring(0, Math.max(4, charsPerLine - 3)) + '...',
+              ]
+            }
+
+            // Split into multiple lines intelligently
+            const lines: string[] = []
+            let remainingWords = [...words]
+
+            while (remainingWords.length > 0 && lines.length < 3) {
+              // Max 3 lines
+              let currentLine = ''
+              let wordsInLine: string[] = []
+
+              // Add words until we would exceed the line length
+              for (let i = 0; i < remainingWords.length; i++) {
+                const testLine =
+                  wordsInLine.length === 0
+                    ? remainingWords[i]
+                    : wordsInLine.join(' ') + ' ' + remainingWords[i]
+
+                if (testLine.length * charWidth <= availableRadialSpace) {
+                  wordsInLine.push(remainingWords[i])
+                  currentLine = testLine
+                } else {
+                  break
+                }
+              }
+
+              // If we couldn't fit even one word, truncate it
+              if (wordsInLine.length === 0 && remainingWords.length > 0) {
+                const word = remainingWords[0]
+                const maxChars =
+                  Math.floor(availableRadialSpace / charWidth) - 3
+                currentLine = word.substring(0, Math.max(3, maxChars)) + '...'
+                remainingWords = remainingWords.slice(1)
+              } else {
+                remainingWords = remainingWords.slice(wordsInLine.length)
+              }
+
+              if (currentLine) {
+                lines.push(currentLine)
+              }
+            }
+
+            return lines.length > 0 ? lines : [fullText.substring(0, 4) + '...']
+          }
+
+          const words = name.split(' ')
+          text.text('') // Clear existing text
+          const lines = createL2Lines(words)
+
+          if (lines.length === 1) {
+            // Single line - no need for tspans
+            text.text(lines[0])
+          } else {
+            // Multiple lines - use tspans
+            lines.forEach((line, index) => {
+              const dy =
+                index === 0 ? `-${(lines.length - 1) * 0.6}em` : '1.2em'
+              text.append('tspan').attr('x', 0).attr('dy', dy).text(line)
+            })
+          }
+        })
+    }
+
+    // Add L3 labels outside the circle when L2 or L3 is selected
+    if (isL2Selected || isL3Selected) {
+      let l3Nodes: PartitionNode[]
+
+      if (isL2Selected) {
+        // Show all L3 children of the selected L2
+        const selectedL2 = selectedItem as TaxonomySubcategory
+        l3Nodes = displayNodes.filter((d) => {
+          return (
+            d.depth === 3 &&
+            d.parent?.data.data &&
+            'items' in d.parent.data.data &&
+            (d.parent.data.data as TaxonomySubcategory).name === selectedL2.name
+          )
+        })
+      } else {
+        // Show only the specific selected L3 item
+        const selectedL3 = selectedItem as TaxonomyItem
+
+        l3Nodes = displayNodes.filter((d) => {
+          return (
+            d.depth === 3 &&
+            d.data.data &&
+            'l3Category' in d.data.data &&
+            (d.data.data as TaxonomyItem).id === selectedL3.id
+          )
+        })
+      }
+
+      if (l3Nodes.length > 0) {
+        g.selectAll('text.l3-label')
+          .data(l3Nodes)
+          .enter()
+          .append('text')
+          .attr('class', 'l3-label')
+          .attr('transform', (d) => {
+            const angle = (d.x0 + d.x1) / 2
+            // Position text outside the circle with some margin
+            const externalRadius = radius - 90 // 30px outside the circle
+            const x = Math.cos(angle - Math.PI / 2) * externalRadius
+            const y = Math.sin(angle - Math.PI / 2) * externalRadius
+
+            // Calculate rotation for external radial text
+            let rotationAngle = (angle * 180) / Math.PI - 90
+
+            // Normalize to 0-360 range first
+            while (rotationAngle < 0) rotationAngle += 360
+            while (rotationAngle >= 360) rotationAngle -= 360
+
+            // For text that would be upside down, flip it
+            let isFlipped = false
+            if (rotationAngle > 90 && rotationAngle < 270) {
+              rotationAngle += 180
+              isFlipped = true
+            }
+
+            // Final normalization
+            if (rotationAngle > 180) rotationAngle -= 360
+
+            return `translate(${x},${y}) rotate(${rotationAngle})`
+          })
+          .style('text-anchor', (d) => {
+            const angle = (d.x0 + d.x1) / 2
+
+            // Calculate if text is flipped to determine alignment
+            let rotationAngle = (angle * 180) / Math.PI - 90
+            while (rotationAngle < 0) rotationAngle += 360
+            while (rotationAngle >= 360) rotationAngle -= 360
+
+            let isFlipped = false
+            if (rotationAngle > 90 && rotationAngle < 270) {
+              isFlipped = true
+            }
+
+            // For external labels, use start/end alignment based on position and flip
+            if (isFlipped) {
+              // Flipped text: right side of circle should be left-aligned, left side right-aligned
+              return angle < Math.PI ? 'end' : 'start'
+            } else {
+              // Normal text: right side of circle should be right-aligned, left side left-aligned
+              return angle < Math.PI ? 'start' : 'end'
+            }
+          })
+          .style('dominant-baseline', 'central')
+          .style('font-size', (d) => {
+            // Smaller font for external L3 labels
+            const arcAngle = d.x1 - d.x0
+            const baseSize = Math.min(12, arcAngle * 80)
+            return `${Math.max(12, baseSize)}px`
+          })
+          .style('font-weight', '500')
+          .style('fill', '#2C2C2C')
+          .style('font-family', 'system-ui, -apple-system, sans-serif')
+          .style('pointer-events', 'none')
+          .style('opacity', 0.8)
+          .each(function (d) {
+            const text = d3.select(this)
+            const name = d.data.name
+
+            // Get font size for this L3 label
+            const arcAngle = d.x1 - d.x0
+            const baseSize = Math.min(12, arcAngle * 80)
+            const fontSize = Math.max(8, baseSize)
+
+            // Helper function for L3 label text wrapping - external labels have more space
+            const createL3Lines = (words: string[]) => {
+              const fullText = words.join(' ')
+
+              // For external labels, we have more horizontal space but want to keep it concise
+              const maxLineLength = 20 // Characters per line for external labels
+
+              // If text is short enough, use single line
+              if (fullText.length <= maxLineLength) {
+                return [fullText]
+              }
+
+              // For longer text, split intelligently
+              const lines: string[] = []
+              let remainingWords = [...words]
+
+              while (remainingWords.length > 0 && lines.length < 2) {
+                // Max 2 lines for external
+                let currentLine = ''
+                let wordsInLine: string[] = []
+
+                // Add words until we exceed maxLineLength
+                for (let i = 0; i < remainingWords.length; i++) {
+                  const testLine =
+                    wordsInLine.length === 0
+                      ? remainingWords[i]
+                      : wordsInLine.join(' ') + ' ' + remainingWords[i]
+
+                  if (testLine.length <= maxLineLength) {
+                    wordsInLine.push(remainingWords[i])
+                    currentLine = testLine
+                  } else {
+                    break
+                  }
+                }
+
+                // If we couldn't fit even one word, truncate it
+                if (wordsInLine.length === 0 && remainingWords.length > 0) {
+                  currentLine =
+                    remainingWords[0].substring(0, maxLineLength - 3) + '...'
+                  remainingWords = remainingWords.slice(1)
+                } else {
+                  remainingWords = remainingWords.slice(wordsInLine.length)
+                }
+
+                if (currentLine) {
+                  lines.push(currentLine)
+                }
+              }
+
+              return lines.length > 0
+                ? lines
+                : [fullText.substring(0, maxLineLength - 3) + '...']
+            }
+
+            const words = name.split(' ')
+            text.text('') // Clear existing text
+            const lines = createL3Lines(words)
+
+            if (lines.length === 1) {
+              // Single line
+              text.text(lines[0])
+            } else {
+              // Multiple lines
+              lines.forEach((line, index) => {
+                const dy =
+                  index === 0 ? `-${(lines.length - 1) * 0.5}em` : '1.0em'
+                text.append('tspan').attr('x', 0).attr('dy', dy).text(line)
+              })
+            }
+          })
+      }
+    }
   }, [data, dimensions, searchQuery, selectedItem])
 
   return (
-    <div className='relative'>
-      <svg ref={svgRef} width='100%' height='600' className='drop-shadow-sm' />
+    <div className='relative min-h-[calc(100vh-5rem)]'>
+      <svg
+        className='absolute inset-0'
+        ref={svgRef}
+        width='100%'
+        height='100%'
+      />
       {/* L2 Category Tooltip */}
       <div
         ref={tooltipRef}
@@ -564,11 +1083,11 @@ export function SunburstChart({
         style={{ display: 'none' }}
       />
       <div className='absolute inset-0 flex items-center justify-center pointer-events-none'>
-        <div className='flex flex-col items-center justify-center text-center bg-background rounded-full p-6 shadow-lg w-[160px] h-[160px]'>
-          <h3 className='text-lg font-semibold text-foreground libre-caslon-display-regular'>
+        <div className='flex flex-col items-center justify-center text-center bg-background rounded-full p-6 shadow-lg w-[130px] h-[130px] xl:w-[160px] xl:h-[160px]'>
+          <h3 className='text-base xl:text-lg font-semibold text-foreground libre-caslon-display-regular'>
             Collinear AI
           </h3>
-          <p className='text-sm text-muted-foreground libre-caslon-display-regular mt-1'>
+          <p className='text-xs xl:text-sm text-muted-foreground libre-caslon-display-regular mt-1'>
             Safety Taxonomy
           </p>
         </div>
