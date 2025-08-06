@@ -1,5 +1,5 @@
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card'
-import { FrameworkBadge } from '@/components/ui/framework-badge'
+import { useState } from 'react'
 import {
   TaxonomyData,
   TaxonomyCategory,
@@ -7,6 +7,7 @@ import {
   TaxonomyItem,
   Framework,
 } from '@shared/schema'
+import { ScrollArea } from '../ui/scroll-area'
 
 export function ListView({
   data,
@@ -21,6 +22,8 @@ export function ListView({
     selected: TaxonomyCategory | TaxonomySubcategory | TaxonomyItem,
   ) => void
 }) {
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
   const displayData = searchQuery
     ? // Group search results by category and subcategory
       searchResults.reduce((acc, item) => {
@@ -71,64 +74,85 @@ export function ListView({
       }, [] as TaxonomyCategory[])
     : data.categories
 
+  // Get the selected category data
+  const selectedCategoryData = selectedCategory
+    ? displayData.find((cat) => cat.name === selectedCategory)
+    : null
+
+  // Auto-select first category if none selected and data is available
+  if (!selectedCategory && displayData.length > 0) {
+    setSelectedCategory(displayData[0].name)
+  }
+
   return (
-    <div className='space-y-4'>
-      {displayData.map((category) => (
-        <Card key={category.name} className='overflow-hidden'>
-          <CardHeader>
-            <div className='flex items-center justify-between'>
-              <CardTitle className='text-base'>{category.name}</CardTitle>
-              <div className='flex items-center space-x-2'>
-                <span className='text-xs text-muted-foreground'>
-                  {category.subcategories.length} subcategories,{' '}
-                  {category.subcategories.reduce(
-                    (sum, sub) => sum + sub.items.length,
-                    0,
-                  )}{' '}
-                  items
-                </span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className='p-4 space-y-4'>
-            {category.subcategories.map((subcategory) => (
-              <div
-                key={subcategory.name}
-                className='space-y-2 border rounded-md p-4'
-              >
-                <div className='flex items-center justify-between'>
-                  <h3 className='text-sm font-semibold text-foreground'>
-                    {subcategory.name}
-                  </h3>
-                  <span className='text-xs text-muted-foreground'>
-                    {subcategory.items.length} items
-                  </span>
-                </div>
-                <ol className='ml-4'>
-                  {subcategory.items.map((item) => (
-                    <li
-                      key={item.id}
-                      className='flex items-start justify-between p-1 bg-muted/50 rounded cursor-pointer hover:bg-muted transition-colors'
-                      onClick={() => onSelectionChange(item)}
-                    >
-                      <div className='flex-1'>
-                        <h4 className='text-sm font-medium text-foreground'>
-                          {item.l3Category}
-                        </h4>
-                      </div>
-                      <div className='flex flex-wrap gap-1 ml-3 hidden'>
-                        {item.frameworks.map((fw) => (
-                          <FrameworkBadge key={fw} framework={fw} />
+    <div className='grid grid-cols-1 lg:grid-cols-5 gap-6 h-full p-6 max-w-screen-xl mx-auto mt-12'>
+      {/* Categories Column */}
+      <div className='lg:col-span-2 space-y-2'>
+        <div className='space-y-2 max-h-[calc(100vh-200px)] overflow-y-auto'>
+          {displayData.map((category) => (
+            <Card
+              key={category.name}
+              className={`cursor-pointer transition-colors hover:bg-muted/50 ${
+                selectedCategory === category.name
+                  ? 'border-[#FFEAE0] bg-[#FFEAE0] text-primary'
+                  : ''
+              }`}
+              onClick={() => {
+                setSelectedCategory(category.name)
+                onSelectionChange(category)
+              }}
+            >
+              <CardHeader className='p-4'>
+                <CardTitle className='text-sm'>{category.name}</CardTitle>
+              </CardHeader>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Subcategories Column */}
+      <div className='lg:col-span-3'>
+        {selectedCategoryData ? (
+          <div className='space-y-4'>
+            <ScrollArea className='h-[calc(100vh-165px)] pr-4'>
+              <div className='space-y-4'>
+                {selectedCategoryData.subcategories.map((subcategory) => (
+                  <Card key={subcategory.name} className='overflow-hidden'>
+                    <CardHeader className='p-4 pb-1'>
+                      <CardTitle className='text-lg'>
+                        {subcategory.name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className='p-4 pt-0'>
+                      <div className='space-y-1'>
+                        {subcategory.items.map((item) => (
+                          <div
+                            key={item.id}
+                            className='p-3 pb-1 bg-muted/30 rounded'
+                          >
+                            <div className='space-y-1'>
+                              <h4 className='text-base font-medium text-foreground'>
+                                {item.l3Category}
+                              </h4>
+                              <p className='text-sm text-muted-foreground leading-relaxed'>
+                                {item.example}
+                              </p>
+                            </div>
+                          </div>
                         ))}
                       </div>
-                    </li>
-                  ))}
-                </ol>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      ))}
+            </ScrollArea>
+          </div>
+        ) : (
+          <div className='flex items-center justify-center h-64 text-muted-foreground'>
+            Select a category to view its subcategories
+          </div>
+        )}
+      </div>
     </div>
   )
 }

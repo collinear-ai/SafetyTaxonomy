@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { FrameworkBadge } from '@/components/ui/framework-badge'
 import { Hand } from 'lucide-react'
+import { ScrollArea } from '../ui/scroll-area'
 
 interface DetailPanelProps {
   selectedData: TaxonomyCategory | TaxonomySubcategory | TaxonomyItem | null
@@ -16,7 +17,7 @@ interface DetailPanelProps {
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className='sticky min-h-screen overflow-y-auto border-l border-border'>
+    <div className='sticky flex flex-col h-full border m-6 rounded-lg max-h-[calc(100vh-120px)]'>
       {children}
     </div>
   )
@@ -24,9 +25,9 @@ const Wrapper = ({ children }: { children: React.ReactNode }) => {
 
 const ContentWrapper = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className='space-y-3 overflow-y-auto max-h-[calc(100vh-90px)] px-4 pb-4'>
-      {children}
-    </div>
+    <ScrollArea className='h-full flex-1 px-4 pb-4 mr-1'>
+      <div className='space-y-3'>{children}</div>
+    </ScrollArea>
   )
 }
 

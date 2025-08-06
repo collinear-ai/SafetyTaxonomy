@@ -87,14 +87,14 @@ export default function Home() {
       </header> */}
 
       {/* Main Content */}
-      <main className='flex-1 grid grid-cols-1 lg:grid-cols-4 gap-8 min-h-screen'>
+      <main className='flex-1'>
         {/* Visualization Panel */}
-        <div className='lg:col-span-3'>
+        <div className=''>
           <div className='flex justify-between items-center pt-6 pl-6'>
             <h2 className='text-xl libre-caslon-display-regular font-semibold'>
               Interactive Safety Taxonomy
             </h2>
-            <div className='flex items-center space-x-4'>
+            <div className='flex items-center space-x-4 pr-6'>
               {/* Search */}
               <div className='relative'>
                 <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground' />
@@ -130,12 +130,24 @@ export default function Home() {
             </div>
           </div>
           {viewMode === 'circle' ? (
-            <SunburstChart
-              data={taxonomyData}
-              onSelectionChange={setSelectedData}
-              searchQuery={searchQuery}
-              selectedItem={selectedData}
-            />
+            <div className='grid grid-cols-1 lg:grid-cols-4 gap-8'>
+              <div className='col-span-3'>
+                <SunburstChart
+                  data={taxonomyData}
+                  onSelectionChange={setSelectedData}
+                  searchQuery={searchQuery}
+                  selectedItem={selectedData}
+                />
+              </div>
+              <div className='lg:col-span-1'>
+                <DetailPanel
+                  selectedData={selectedData}
+                  overallCoverage={
+                    taxonomyData.overallCoverage as Record<Framework, number>
+                  }
+                />
+              </div>
+            </div>
           ) : (
             <ListView
               data={taxonomyData}
@@ -144,16 +156,6 @@ export default function Home() {
               onSelectionChange={setSelectedData}
             />
           )}
-        </div>
-
-        {/* Detail Panel */}
-        <div className='lg:col-span-1'>
-          <DetailPanel
-            selectedData={selectedData}
-            overallCoverage={
-              taxonomyData.overallCoverage as Record<Framework, number>
-            }
-          />
         </div>
       </main>
     </div>
