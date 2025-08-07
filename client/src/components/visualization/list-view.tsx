@@ -132,7 +132,7 @@ export function ListView({
                           >
                             <div className='space-y-1'>
                               <h4 className='text-base font-medium text-foreground'>
-                                {item.l3Category}
+                                {item.l3Number}. {item.l3Category}
                               </h4>
                               <p className='text-sm text-muted-foreground leading-relaxed'>
                                 {item.example}

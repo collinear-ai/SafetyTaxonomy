@@ -46,6 +46,7 @@ export function SunburstChart({
   }, [])
 
   useEffect(() => {
+    console.log('data', data, selectedItem)
     if (!svgRef.current || !data) return
 
     const svg = d3.select(svgRef.current)
@@ -57,12 +58,12 @@ export function SunburstChart({
     const viewBoxHeight = height
     const radius = Math.min(viewBoxWidth, viewBoxHeight) / 2 - 10 // Use full viewBox with 10px margin
 
-    console.log(
-      'Calculated radius:',
-      radius,
-      'Expected circle diameter:',
-      radius * 2,
-    )
+    // console.log(
+    //   'Calculated radius:',
+    //   radius,
+    //   'Expected circle diameter:',
+    //   radius * 2,
+    // )
 
     const g = svg
       .attr('viewBox', `0 0 ${viewBoxWidth} ${viewBoxHeight}`)
@@ -77,10 +78,8 @@ export function SunburstChart({
 
     // Create hierarchy data
     const hierarchyData = createHierarchyData(data)
-    const root = d3
-      .hierarchy(hierarchyData)
-      .sum((d) => d.value || 0)
-      .sort((a, b) => (b.value || 0) - (a.value || 0))
+    const root = d3.hierarchy(hierarchyData).sum((d) => d.value || 0)
+    // Removed .sort() to preserve original data order
 
     // The issue is that D3's partition isn't using our full radius
     // Let's directly control the radial positioning
@@ -588,12 +587,12 @@ export function SunburstChart({
         const angle = (d.x0 + d.x1) / 2
         // Move text 15% further out from center for better breathing room
         const ringCenter = (d.y0 + d.y1) / 2
-        const textRadius = ringCenter + (d.y1 - d.y0) * 0.15
+        const textRadius = ringCenter + (d.y1 - d.y0) * 0.13
         const x = Math.cos(angle - Math.PI / 2) * textRadius
         let y = Math.sin(angle - Math.PI / 2) * textRadius
 
         if (isZoomed) {
-          y = Math.sin(angle - Math.PI / 2) * textRadius * 0.75
+          y = Math.sin(angle - Math.PI / 2) * textRadius * 0.82
         }
 
         return `translate(${x},${y})`
@@ -604,18 +603,18 @@ export function SunburstChart({
         // Much larger font sizes when zoomed to individual slice
         if (isZoomed) {
           const arcAngle = d.x1 - d.x0
-          const baseSize = Math.min(36, arcAngle * 200) // Much larger scale for zoomed view
-          return `${Math.max(36, baseSize)}px` // Much larger minimum size when zoomed
+          const baseSize = Math.min(24, arcAngle * 100) // Much larger scale for zoomed view
+          return `${Math.max(24, baseSize)}px` // Much larger minimum size when zoomed
         } else {
           // Normal sizes for full view
           const arcAngle = d.x1 - d.x0
-          const baseSize = Math.min(14, arcAngle * 80)
+          const baseSize = Math.min(16, arcAngle * 50)
           return `${Math.max(24, baseSize)}px`
         }
       })
-      .style('font-weight', '400')
+      .style('font-weight', '450')
       .style('fill', '#2C2C2C')
-      .style('font-family', '"Libre Caslon Display", serif')
+      // .style('font-family', '"Libre Caslon Display", serif')
       .style('pointer-events', 'none')
       .each(function (d) {
         const text = d3.select(this)
@@ -889,183 +888,44 @@ export function SunburstChart({
         })
     }
 
-    // Add L3 labels outside the circle when L2 or L3 is selected
-    if (isL2Selected || isL3Selected) {
-      let l3Nodes: PartitionNode[]
+    // Add L3 numbers when zoomed (always visible in zoomed state)
+    if (isZoomed) {
+      // Get all L3 nodes when zoomed
+      const l3Nodes = displayNodes.filter((d) => d.depth === 3)
 
-      if (isL2Selected) {
-        // Show all L3 children of the selected L2
-        const selectedL2 = selectedItem as TaxonomySubcategory
-        l3Nodes = displayNodes.filter((d) => {
-          return (
-            d.depth === 3 &&
-            d.parent?.data.data &&
-            'items' in d.parent.data.data &&
-            (d.parent.data.data as TaxonomySubcategory).name === selectedL2.name
-          )
+      // Add numbers to L3 sections inside the circle
+      g.selectAll('text.l3-number')
+        .data(l3Nodes)
+        .enter()
+        .append('text')
+        .attr('class', 'l3-number')
+        .attr('transform', (d) => {
+          const angle = (d.x0 + d.x1) / 2
+          // Position numbers inside the L3 ring
+          const ringInner = d.y0
+          const ringOuter = d.y1
+          const numberRadius = ringInner + (ringOuter - ringInner) * 0.15 // Center of ring
+          const x = Math.cos(angle - Math.PI / 2) * numberRadius
+          const y = Math.sin(angle - Math.PI / 2) * numberRadius
+          return `translate(${x},${y})`
         })
-      } else {
-        // Show only the specific selected L3 item
-        const selectedL3 = selectedItem as TaxonomyItem
-
-        l3Nodes = displayNodes.filter((d) => {
-          return (
-            d.depth === 3 &&
-            d.data.data &&
-            'l3Category' in d.data.data &&
-            (d.data.data as TaxonomyItem).id === selectedL3.id
-          )
+        .style('text-anchor', 'middle')
+        .style('dominant-baseline', 'central')
+        .style('font-size', (d) => {
+          // Font size based on section size
+          const arcAngle = d.x1 - d.x0
+          const ringWidth = d.y1 - d.y0
+          const baseSize = Math.min(14, arcAngle * 100)
+          return `${Math.max(10, baseSize)}px`
         })
-      }
-
-      if (l3Nodes.length > 0) {
-        g.selectAll('text.l3-label')
-          .data(l3Nodes)
-          .enter()
-          .append('text')
-          .attr('class', 'l3-label')
-          .attr('transform', (d) => {
-            const angle = (d.x0 + d.x1) / 2
-            // Position text outside the circle with some margin
-            const externalRadius = radius - 90 // 30px outside the circle
-            const x = Math.cos(angle - Math.PI / 2) * externalRadius
-            const y = Math.sin(angle - Math.PI / 2) * externalRadius
-
-            // Calculate rotation for external radial text
-            let rotationAngle = (angle * 180) / Math.PI - 90
-
-            // Normalize to 0-360 range first
-            while (rotationAngle < 0) rotationAngle += 360
-            while (rotationAngle >= 360) rotationAngle -= 360
-
-            // For text that would be upside down, flip it
-            let isFlipped = false
-            if (rotationAngle > 90 && rotationAngle < 270) {
-              rotationAngle += 180
-              isFlipped = true
-            }
-
-            // Final normalization
-            if (rotationAngle > 180) rotationAngle -= 360
-
-            return `translate(${x},${y}) rotate(${rotationAngle})`
-          })
-          .style('text-anchor', (d) => {
-            const angle = (d.x0 + d.x1) / 2
-
-            // Calculate if text is flipped to determine alignment
-            let rotationAngle = (angle * 180) / Math.PI - 90
-            while (rotationAngle < 0) rotationAngle += 360
-            while (rotationAngle >= 360) rotationAngle -= 360
-
-            let isFlipped = false
-            if (rotationAngle > 90 && rotationAngle < 270) {
-              isFlipped = true
-            }
-
-            // For external labels, use start/end alignment based on position and flip
-            if (isFlipped) {
-              // Flipped text: right side of circle should be left-aligned, left side right-aligned
-              return angle < Math.PI ? 'end' : 'start'
-            } else {
-              // Normal text: right side of circle should be right-aligned, left side left-aligned
-              return angle < Math.PI ? 'start' : 'end'
-            }
-          })
-          .style('dominant-baseline', 'central')
-          .style('font-size', (d) => {
-            // Smaller font for external L3 labels
-            const arcAngle = d.x1 - d.x0
-            const baseSize = Math.min(12, arcAngle * 80)
-            return `${Math.max(12, baseSize)}px`
-          })
-          .style('font-weight', '500')
-          .style('fill', '#2C2C2C')
-          .style('font-family', 'system-ui, -apple-system, sans-serif')
-          .style('pointer-events', 'none')
-          .style('opacity', 0.8)
-          .each(function (d) {
-            const text = d3.select(this)
-            const name = d.data.name
-
-            // Get font size for this L3 label
-            const arcAngle = d.x1 - d.x0
-            const baseSize = Math.min(12, arcAngle * 80)
-            const fontSize = Math.max(8, baseSize)
-
-            // Helper function for L3 label text wrapping - external labels have more space
-            const createL3Lines = (words: string[]) => {
-              const fullText = words.join(' ')
-
-              // For external labels, we have more horizontal space but want to keep it concise
-              const maxLineLength = 20 // Characters per line for external labels
-
-              // If text is short enough, use single line
-              if (fullText.length <= maxLineLength) {
-                return [fullText]
-              }
-
-              // For longer text, split intelligently
-              const lines: string[] = []
-              let remainingWords = [...words]
-
-              while (remainingWords.length > 0 && lines.length < 2) {
-                // Max 2 lines for external
-                let currentLine = ''
-                let wordsInLine: string[] = []
-
-                // Add words until we exceed maxLineLength
-                for (let i = 0; i < remainingWords.length; i++) {
-                  const testLine =
-                    wordsInLine.length === 0
-                      ? remainingWords[i]
-                      : wordsInLine.join(' ') + ' ' + remainingWords[i]
-
-                  if (testLine.length <= maxLineLength) {
-                    wordsInLine.push(remainingWords[i])
-                    currentLine = testLine
-                  } else {
-                    break
-                  }
-                }
-
-                // If we couldn't fit even one word, truncate it
-                if (wordsInLine.length === 0 && remainingWords.length > 0) {
-                  currentLine =
-                    remainingWords[0].substring(0, maxLineLength - 3) + '...'
-                  remainingWords = remainingWords.slice(1)
-                } else {
-                  remainingWords = remainingWords.slice(wordsInLine.length)
-                }
-
-                if (currentLine) {
-                  lines.push(currentLine)
-                }
-              }
-
-              return lines.length > 0
-                ? lines
-                : [fullText.substring(0, maxLineLength - 3) + '...']
-            }
-
-            const words = name.split(' ')
-            text.text('') // Clear existing text
-            const lines = createL3Lines(words)
-
-            if (lines.length === 1) {
-              // Single line
-              text.text(lines[0])
-            } else {
-              // Multiple lines
-              lines.forEach((line, index) => {
-                const dy =
-                  index === 0 ? `-${(lines.length - 1) * 0.5}em` : '1.0em'
-                text.append('tspan').attr('x', 0).attr('dy', dy).text(line)
-              })
-            }
-          })
-      }
+        .style('font-weight', '600')
+        .style('fill', '#1f2937')
+        .style('font-family', 'system-ui, -apple-system, sans-serif')
+        .style('pointer-events', 'none')
+        .text((d, i) => i + 1) // Number starting from 1
     }
+
+    // L3 text labels removed - only keeping L3 numbers
   }, [data, dimensions, searchQuery, selectedItem])
 
   return (
@@ -1083,11 +943,11 @@ export function SunburstChart({
         style={{ display: 'none' }}
       />
       <div className='absolute inset-0 flex items-center justify-center pointer-events-none'>
-        <div className='flex flex-col items-center justify-center text-center bg-background rounded-full p-6 shadow-lg w-[130px] h-[130px] xl:w-[160px] xl:h-[160px]'>
-          <h3 className='text-base xl:text-lg font-semibold text-foreground libre-caslon-display-regular'>
+        <div className='flex flex-col items-center justify-center text-center bg-background rounded-full shadow-lg w-[130px] h-[130px] [@media(min-height:950px)]:w-[160px] [@media(min-height:950px)]:h-[160px]'>
+          <h3 className='text-base [@media(min-height:950px)]:text-lg font-semibold text-foreground'>
             Collinear AI
           </h3>
-          <p className='text-xs xl:text-sm text-muted-foreground libre-caslon-display-regular mt-1'>
+          <p className='text-xs [@media(min-height:950px)]:text-sm text-muted-foreground mt-0.5'>
             Safety Taxonomy
           </p>
         </div>

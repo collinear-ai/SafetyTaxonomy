@@ -97,20 +97,21 @@ export function DetailPanel({
       <Wrapper>
         <HeaderWrapper>
           <CardTitle className='text-lg'>{category.name}</CardTitle>
-          <p className='text-sm text-muted-foreground mt-1'>
-            {category.subcategories.length} subcategories • {totalItems} items
-          </p>
         </HeaderWrapper>
         <ContentWrapper>
           {category.subcategories.map((subcategory) => (
-            <div key={subcategory.name} className='p-3 bg-muted rounded-lg'>
-              <h4 className='font-medium text-foreground mb-2'>
+            <div
+              key={subcategory.name}
+              className='p-4 pt-3 bg-muted rounded-lg'
+            >
+              <h4 className='font-medium text-foreground mb-2 text-lg'>
                 {subcategory.name}
               </h4>
-              <ul className='space-y-1.5 list-disc list-inside'>
+              <ul className='space-y-1.5'>
                 {subcategory.items.map((item) => (
-                  <li key={item.id} className='text-xs text-muted-foreground'>
-                    {item.l3Category}
+                  <li key={item.id} className='text-sm flex'>
+                    <span className='mr-2 font-bold w-5'>{item.l3Number}</span>
+                    <span>{item.l3Category}</span>
                   </li>
                 ))}
               </ul>
@@ -126,22 +127,14 @@ export function DetailPanel({
       <Wrapper>
         <HeaderWrapper>
           <CardTitle className='text-lg'>{subcategory.name}</CardTitle>
-          <p className='text-sm text-muted-foreground mt-1'>
-            {subcategory.items.length} items
-          </p>
         </HeaderWrapper>
         <ContentWrapper>
           {subcategory.items.map((item) => (
             <div key={item.id} className='p-3 bg-muted rounded-lg'>
               <h4 className='font-medium text-foreground mb-1.5'>
-                {item.l3Category}
+                {item.l3Number}. {item.l3Category}
               </h4>
               <p className='text-xs text-muted-foreground'>{item.example}</p>
-              <div className='flex flex-wrap gap-1 hidden'>
-                {item.frameworks.map((fw) => (
-                  <FrameworkBadge key={fw} framework={fw} />
-                ))}
-              </div>
             </div>
           ))}
         </ContentWrapper>
