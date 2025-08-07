@@ -110,7 +110,9 @@ export function DetailPanel({
               <ul className='space-y-1.5'>
                 {subcategory.items.map((item) => (
                   <li key={item.id} className='text-sm flex'>
-                    <span className='mr-2 font-bold w-5'>{item.l3Number}</span>
+                    <span className='mr-2 font-bold w-5 flex-none'>
+                      {item.l3Number}
+                    </span>
                     <span>{item.l3Category}</span>
                   </li>
                 ))}

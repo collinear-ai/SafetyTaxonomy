@@ -585,14 +585,19 @@ export function SunburstChart({
       .attr('class', 'l1-label')
       .attr('transform', (d) => {
         const angle = (d.x0 + d.x1) / 2
-        // Move text 15% further out from center for better breathing room
+        // Responsive text positioning based on screen size
+        const screenScale = Math.min(width, height) / 800
         const ringCenter = (d.y0 + d.y1) / 2
-        const textRadius = ringCenter + (d.y1 - d.y0) * 0.13
+        // Adjust text offset based on screen size - closer to center on smaller screens
+        const textOffsetRatio = isZoomed
+          ? 0.11
+          : Math.max(0.08, 0.09 * screenScale)
+        const textRadius = ringCenter + (d.y1 - d.y0) * textOffsetRatio
         const x = Math.cos(angle - Math.PI / 2) * textRadius
         let y = Math.sin(angle - Math.PI / 2) * textRadius
 
         if (isZoomed) {
-          y = Math.sin(angle - Math.PI / 2) * textRadius * 0.82
+          y = Math.sin(angle - Math.PI / 2) * textRadius * 0.85
         }
 
         return `translate(${x},${y})`
@@ -600,16 +605,27 @@ export function SunburstChart({
       .style('text-anchor', 'middle')
       .style('dominant-baseline', 'middle')
       .style('font-size', (d) => {
+        // Screen size responsive scaling
+        const screenScale = Math.min(width, height) / 800 // Scale factor based on chart size
+
         // Much larger font sizes when zoomed to individual slice
         if (isZoomed) {
           const arcAngle = d.x1 - d.x0
-          const baseSize = Math.min(24, arcAngle * 100) // Much larger scale for zoomed view
-          return `${Math.max(24, baseSize)}px` // Much larger minimum size when zoomed
+          const baseSize = Math.min(
+            20 * screenScale,
+            arcAngle * 100 * screenScale,
+          )
+          return `${Math.max(16 * screenScale, baseSize)}px`
         } else {
-          // Normal sizes for full view
+          // Normal sizes for full view - responsive to screen size
           const arcAngle = d.x1 - d.x0
-          const baseSize = Math.min(16, arcAngle * 50)
-          return `${Math.max(24, baseSize)}px`
+          const baseSize = Math.min(
+            16 * screenScale,
+            arcAngle * 50 * screenScale,
+          )
+          // Minimum font size scales with screen: 12px for small screens, up to 20px for large
+          const minSize = Math.max(12, Math.min(20, 14 * screenScale))
+          return `${Math.max(minSize, baseSize)}px`
         }
       })
       .style('font-weight', '450')
