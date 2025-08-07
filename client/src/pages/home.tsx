@@ -91,9 +91,18 @@ export default function Home() {
         {/* Visualization Panel */}
         <div className=''>
           <div className='flex justify-between items-center pt-6 pl-6'>
-            <h2 className='text-xl libre-caslon-display-regular font-semibold'>
-              Interactive Safety Taxonomy
-            </h2>
+            <div className='flex items-center space-x-4'>
+              <img
+                src='/logo-2.png'
+                height={40}
+                alt='Collinear AI'
+                className='w-auto h-10 relative top-[-1px]'
+              />
+              <div className='h-8 border-l-2 border-border pl-1'></div>
+              <h2 className='text-lg font-medium'>
+                Interactive Safety Taxonomy
+              </h2>
+            </div>
             <div className='flex items-center space-x-4 pr-6'>
               {/* Search */}
               <div className='relative'>
